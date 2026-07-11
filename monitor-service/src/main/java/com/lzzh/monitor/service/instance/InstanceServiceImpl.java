@@ -27,6 +27,7 @@ import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.HostMapper;
 import com.lzzh.monitor.dao.mapper.InstanceGroupMapper;
+import com.lzzh.monitor.dao.mapper.InstanceDataCleanupMapper;
 import com.lzzh.monitor.dao.entity.Host;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.convert.InstanceConverter;
@@ -36,6 +37,7 @@ import com.lzzh.monitor.service.support.Pages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.sql.Connection;
@@ -70,6 +72,7 @@ public class InstanceServiceImpl implements InstanceService {
     private final InstanceGroupMapper instanceGroupMapper;
     private final SysUserMapper sysUserMapper;
     private final HostMapper hostMapper;
+    private final InstanceDataCleanupMapper instanceDataCleanupMapper;
 
     public InstanceServiceImpl(DbInstanceMapper mapper,
                                DatabaseTypeMapper databaseTypeMapper,
@@ -79,7 +82,8 @@ public class InstanceServiceImpl implements InstanceService {
                                AlertEventMapper alertEventMapper,
                                InstanceGroupMapper instanceGroupMapper,
                                SysUserMapper sysUserMapper,
-                               HostMapper hostMapper) {
+                               HostMapper hostMapper,
+                               InstanceDataCleanupMapper instanceDataCleanupMapper) {
         this.mapper = mapper;
         this.databaseTypeMapper = databaseTypeMapper;
         this.databaseVersionMapper = databaseVersionMapper;
@@ -89,6 +93,7 @@ public class InstanceServiceImpl implements InstanceService {
         this.instanceGroupMapper = instanceGroupMapper;
         this.sysUserMapper = sysUserMapper;
         this.hostMapper = hostMapper;
+        this.instanceDataCleanupMapper = instanceDataCleanupMapper;
     }
 
     /** 主机查找表（hostId → Host），供列表/详情解析 hostName / hostOsType。 */
@@ -261,8 +266,13 @@ public class InstanceServiceImpl implements InstanceService {
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
         checkAccessible(id);
+        if (mapper.selectById(id) == null) {
+            throw new BusinessException("实例不存在: " + id);
+        }
+        instanceDataCleanupMapper.deleteByInstanceId(id);
         mapper.deleteById(id);
     }
 
