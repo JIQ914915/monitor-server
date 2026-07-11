@@ -4,6 +4,7 @@ import com.lzzh.monitor.api.response.CollectTargetVo;
 import com.lzzh.monitor.collector.runner.CollectRunner;
 import com.lzzh.monitor.common.enums.CollectFrequency;
 import com.lzzh.monitor.service.instance.InstanceService;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.springframework.stereotype.Component;
@@ -14,13 +15,10 @@ import java.util.List;
 @Component
 public class MinuteCollectJobHandler {
 
-    private final InstanceService instanceService;
-    private final CollectRunner collectRunner;
-
-    public MinuteCollectJobHandler(InstanceService instanceService, CollectRunner collectRunner) {
-        this.instanceService = instanceService;
-        this.collectRunner = collectRunner;
-    }
+    @Resource
+    private InstanceService instanceService;
+    @Resource
+    private CollectRunner collectRunner;
 
     @XxlJob("minuteCollectJobHandler")
     public void minuteCollect() {

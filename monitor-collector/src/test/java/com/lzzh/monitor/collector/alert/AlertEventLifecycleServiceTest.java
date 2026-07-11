@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -51,6 +52,8 @@ class AlertEventLifecycleServiceTest {
     private ScenarioInstanceConfigMapper scenarioConfigMapper;
     private AlertNotificationService notificationService;
     private AlertMessageRenderer messageRenderer;
+    private BlockingChainSnapshotService blockingChainSnapshotService;
+    private AlertNotifyProperties notifyProperties;
     private AlertEventLifecycleService service;
 
     /**
@@ -77,10 +80,19 @@ class AlertEventLifecycleServiceTest {
         scenarioConfigMapper = mock(ScenarioInstanceConfigMapper.class);
         notificationService = mock(AlertNotificationService.class);
         messageRenderer = mock(AlertMessageRenderer.class);
+        blockingChainSnapshotService = mock(BlockingChainSnapshotService.class);
+        notifyProperties = new AlertNotifyProperties();
         when(messageRenderer.render(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn("msg");
-        service = new AlertEventLifecycleService(alertEventMapper, windowMapper, instanceConfigMapper,
-                scenarioConfigMapper, notificationService, messageRenderer, new AlertNotifyProperties());
+        service = new AlertEventLifecycleService();
+        ReflectionTestUtils.setField(service, "alertEventMapper", alertEventMapper);
+        ReflectionTestUtils.setField(service, "alertEvaluateWindowMapper", windowMapper);
+        ReflectionTestUtils.setField(service, "instanceConfigMapper", instanceConfigMapper);
+        ReflectionTestUtils.setField(service, "scenarioConfigMapper", scenarioConfigMapper);
+        ReflectionTestUtils.setField(service, "alertNotificationService", notificationService);
+        ReflectionTestUtils.setField(service, "messageRenderer", messageRenderer);
+        ReflectionTestUtils.setField(service, "notifyProperties", notifyProperties);
+        ReflectionTestUtils.setField(service, "blockingChainSnapshotService", blockingChainSnapshotService);
     }
 
     private static AlertRule rule(int durationSec) {

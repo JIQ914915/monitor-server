@@ -3,6 +3,7 @@ package com.lzzh.monitor.collector.job;
 import com.lzzh.monitor.api.response.HostCollectTargetVo;
 import com.lzzh.monitor.collector.runner.HostCollectRunner;
 import com.lzzh.monitor.service.host.HostService;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.springframework.stereotype.Component;
@@ -16,13 +17,10 @@ import java.util.List;
 @Component
 public class HostCollectJobHandler {
 
-    private final HostService hostService;
-    private final HostCollectRunner hostCollectRunner;
-
-    public HostCollectJobHandler(HostService hostService, HostCollectRunner hostCollectRunner) {
-        this.hostService = hostService;
-        this.hostCollectRunner = hostCollectRunner;
-    }
+    @Resource
+    private HostService hostService;
+    @Resource
+    private HostCollectRunner hostCollectRunner;
 
     @XxlJob("hostCollectJobHandler")
     public void hostCollect() {

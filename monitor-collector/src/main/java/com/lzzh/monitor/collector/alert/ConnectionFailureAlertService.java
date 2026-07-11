@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.lzzh.monitor.dao.entity.AlertEvent;
 import com.lzzh.monitor.dao.entity.AlertRule;
 import com.lzzh.monitor.dao.mapper.AlertEventMapper;
+import jakarta.annotation.Resource;
 
 /**
  * 实例连接失败告警（系统内置逻辑，不走告警规则体系）。
@@ -49,14 +50,10 @@ public class ConnectionFailureAlertService {
     private static final String RULE_LEVEL = "level_1";
     private static final List<String> ACTIVE_STATUSES = List.of("pending", "confirmed", "handling");
 
-    private final AlertEventMapper alertEventMapper;
-    private final AlertNotificationService notificationService;
-
-    public ConnectionFailureAlertService(AlertEventMapper alertEventMapper,
-                                         AlertNotificationService notificationService) {
-        this.alertEventMapper = alertEventMapper;
-        this.notificationService = notificationService;
-    }
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertNotificationService notificationService;
 
     /**
      * 实例被标为 abnormal（连续失败达阈值）时建单并全渠道通知。

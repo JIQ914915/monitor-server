@@ -6,6 +6,7 @@ import com.lzzh.monitor.common.enums.InstanceStatus;
 import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.service.metric.HealthScoreService;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -32,13 +33,10 @@ public class HealthCalculateJobHandler {
 
     private static final Logger log = LoggerFactory.getLogger(HealthCalculateJobHandler.class);
 
-    private final DbInstanceMapper dbInstanceMapper;
-    private final HealthScoreService healthScoreService;
-
-    public HealthCalculateJobHandler(DbInstanceMapper dbInstanceMapper, HealthScoreService healthScoreService) {
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.healthScoreService = healthScoreService;
-    }
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private HealthScoreService healthScoreService;
 
     @XxlJob("healthCalculateJobHandler")
     public void calculate() {
