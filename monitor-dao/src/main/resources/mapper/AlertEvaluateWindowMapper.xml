@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.AlertEvaluateWindowMapper">
+    <select id="selectWindow" resultType="com.lzzh.monitor.dao.entity.AlertEvaluateWindow">
+        SELECT dedup_key, window_type, first_match_time, last_eval_time, expire_time, created_at, updated_at
+        FROM alert_evaluate_window
+        WHERE dedup_key = #{dedupKey}
+          AND window_type = #{windowType}
+    </select>
+
+    <select id="selectAll" resultType="com.lzzh.monitor.dao.entity.AlertEvaluateWindow">
+        SELECT dedup_key, window_type, first_match_time, last_eval_time, expire_time, created_at, updated_at
+        FROM alert_evaluate_window
+    </select>
+
+    <insert id="touch">
+        INSERT INTO alert_evaluate_window (
+            dedup_key, window_type, first_match_time, last_eval_time, expire_time
+        )
+        VALUES (
+            #{dedupKey}, #{windowType}, #{now}, #{now}, #{expireTime}
+        )
+        ON CONFLICT (dedup_key, window_type) DO UPDATE
+        SET first_match_time = CASE
+                WHEN alert_evaluate_window.expire_time IS NOT NULL
+                     AND alert_evaluate_window.expire_time &lt; now()
+                THEN EXCLUDED.first_match_time
+                ELSE alert_evaluate_window.first_match_time
+            END,
+            last_eval_time = EXCLUDED.last_eval_time,
+            expire_time = EXCLUDED.expire_time,
+            updated_at = now()
+    </insert>
+
+    <delete id="deleteWindow">
+        DELETE FROM alert_evaluate_window
+        WHERE dedup_key = #{dedupKey}
+          AND window_type = #{windowType}
+    </delete>
+
+    <delete id="deleteExpired">
+        DELETE FROM alert_evaluate_window
+        WHERE expire_time IS NOT NULL
+          AND expire_time &lt; now()
+    </delete>
+
+    <delete id="deleteByDedupKeys">
+        DELETE FROM alert_evaluate_window
+        WHERE dedup_key IN
+        <foreach item="key" collection="keys" open="(" separator="," close=")">#{key}</foreach>
+    </delete>
+
+    <delete id="deleteByRuleInstance">
+        DELETE FROM alert_evaluate_window
+        WHERE dedup_key = #{exactKey}
+           OR dedup_key LIKE #{prefix} || '%'
+    </delete>
+</mapper>

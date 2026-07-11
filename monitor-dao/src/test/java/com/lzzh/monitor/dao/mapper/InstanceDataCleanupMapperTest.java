@@ -1,9 +1,9 @@
 package com.lzzh.monitor.dao.mapper;
 
-import org.apache.ibatis.annotations.Delete;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -11,10 +11,10 @@ class InstanceDataCleanupMapperTest {
 
     @Test
     void cleanupSqlCoversAllInstanceOwnedTables() throws Exception {
-        Method method = InstanceDataCleanupMapper.class
-                .getMethod("deleteByInstanceId", Long.class);
-        Delete annotation = method.getAnnotation(Delete.class);
-        String sql = String.join("\n", annotation.value()).toLowerCase();
+        try (InputStream resource = InstanceDataCleanupMapperTest.class.getClassLoader()
+                .getResourceAsStream("mapper/InstanceDataCleanupMapper.xml")) {
+            assertThat(resource).isNotNull();
+            String sql = new String(resource.readAllBytes(), StandardCharsets.UTF_8).toLowerCase();
 
         assertThat(sql).contains(
                 "delete from alert_notify_record",
@@ -39,5 +39,6 @@ class InstanceDataCleanupMapperTest {
                 "delete from metric_capacity_object",
                 "delete from metric_long_conn",
                 "delete from metric_slow_sql_sample");
+        }
     }
 }
