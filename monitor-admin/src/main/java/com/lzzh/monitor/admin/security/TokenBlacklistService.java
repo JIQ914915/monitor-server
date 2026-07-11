@@ -36,7 +36,7 @@ public class TokenBlacklistService {
     private static final Logger log = LoggerFactory.getLogger(TokenBlacklistService.class);
     private static final String KEY_PREFIX = "token:user:blocked:";
 
-    @Resource
+    @Resource(name = "stringRedisTemplate")
     private StringRedisTemplate redisTemplate;
     @Resource
     private JwtProperties jwtProperties;
