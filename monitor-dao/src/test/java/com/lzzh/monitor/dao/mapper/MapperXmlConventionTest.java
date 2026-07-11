@@ -58,7 +58,7 @@ class MapperXmlConventionTest {
         }
 
         try (Stream<Path> xmlFiles = Files.walk(xmlDirectory)) {
-            for (Path xml : xmlFiles.filter(path -> path.getFileName().toString().endsWith("Mapper.xml")).sorted().toList()) {
+            for (Path xml : xmlFiles.filter(path -> path.getFileName().toString().endsWith(".xml")).sorted().toList()) {
                 inspectMapperXml(xml, violations);
             }
         }
@@ -150,12 +150,22 @@ class MapperXmlConventionTest {
         try {
             Document document = secureDocumentBuilderFactory().newDocumentBuilder().parse(xml.toFile());
             Element mapper = document.getDocumentElement();
+            if (!"mapper".equals(mapper.getTagName())) {
+                violations.add(xml.getFileName() + ": root element must be <mapper>");
+                return;
+            }
             String namespace = mapper.getAttribute("namespace");
             Class<?> mapperType;
             try {
                 mapperType = Class.forName(namespace);
             } catch (ClassNotFoundException exception) {
                 violations.add(xml.getFileName() + ": namespace does not name an existing Mapper: " + namespace);
+                return;
+            }
+            if (!mapperType.isInterface()
+                    || !"com.lzzh.monitor.dao.mapper".equals(mapperType.getPackageName())) {
+                violations.add(xml.getFileName()
+                        + ": namespace must name an interface in com.lzzh.monitor.dao.mapper: " + namespace);
                 return;
             }
             Set<String> methods = new LinkedHashSet<>();
