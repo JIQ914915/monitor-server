@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.lzzh</groupId>
+        <artifactId>monitor-server</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>monitor-collector</artifactId>
+    <name>monitor-collector</name>
+    <description>可执行：xxl-job 执行器，聚合 SPI + 各库实现</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.lzzh</groupId>
+            <artifactId>monitor-service</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lzzh</groupId>
+            <artifactId>monitor-collector-spi</artifactId>
+        </dependency>
+        <!-- 各数据库采集实现：新增类型 = 新增一个 monitor-collector-<db> 依赖 -->
+        <dependency>
+            <groupId>com.lzzh</groupId>
+            <artifactId>monitor-collector-mysql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.lzzh</groupId>
+            <artifactId>monitor-collector-postgresql</artifactId>
+        </dependency>
+        <!-- 主机（OS）指标采集：node_exporter 拉取 -->
+        <dependency>
+            <groupId>com.lzzh</groupId>
+            <artifactId>monitor-collector-host</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.xuxueli</groupId>
+            <artifactId>xxl-job-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dysmsapi20170525</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>monitor-collector</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.lzzh.monitor.collector.CollectorApplication</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -1,0 +1,82 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: monitor-admin
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/monitor_db?currentSchema=public&stringtype=unspecified
+    username: monitor
+    password: monitor
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      validation-query: SELECT 1
+      test-while-idle: true
+      # 保活：空闲连接定期心跳，避免被数据库/防火墙掐断后变成僵死连接
+      keep-alive: true
+      # 空闲超 10 分钟回收（保留 min-idle 个），每 60s 跑一轮清理
+      min-evictable-idle-time-millis: 600000
+      time-between-eviction-runs-millis: 60000
+      # 泄漏检测：借出超 300s 未归还判定为泄漏，强制回收并打印借出堆栈
+      # 注意：整点批量写入/重查询正常不会超过 300s，如出现误回收再调大
+      remove-abandoned: true
+      remove-abandoned-timeout: 300
+      log-abandoned: true
+      # Druid 监控页（生产请加访问控制）
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        login-username: admin
+        login-password: admin
+  # Redis：Token 黑名单（P0-4）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 1
+  # 数据库迁移：建表 + 种子数据（首次启动自动执行）
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    db-config:
+      id-type: auto
+      # 逻辑删除等可在此扩展
+
+# JWT（生产从环境变量注入 secret）
+monitor:
+  jwt:
+    secret: ${MONITOR_JWT_SECRET:change-me-please-change-me-please-32bytes}
+    expire-millis: 28800000
+    header: Authorization
+    prefix: "Bearer "
+  # 采集账号密码加解密密钥（AES-GCM，§13.3.2）；生产从环境变量注入，需与采集端一致
+  crypto:
+    password-key: ${MONITOR_CRYPTO_PASSWORD_KEY:change-me-monitor-crypto-key-please-override}
+
+# Knife4j API 文档（4.x）
+# 包扫描由 OpenApiConfig.GroupedOpenApi Bean 统一管理，此处只做基础开关
+knife4j:
+  enable: true
+
+logging:
+  level:
+    com.lzzh.monitor: debug

@@ -1,0 +1,115 @@
+spring:
+  application:
+    name: monitor-collector
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/monitor_db?currentSchema=public&stringtype=unspecified
+    username: monitor
+    password: monitor
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 30
+      max-wait: 60000
+      validation-query: SELECT 1
+      test-on-borrow: true
+      test-while-idle: true
+      time-between-eviction-runs-millis: 60000
+      keep-alive: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+# xxl-job 执行器（必选：所有定时任务统一由 xxl-job-admin 调度，无本地兜底）
+xxl:
+  job:
+    admin-addresses: ${XXL_JOB_ADMIN:http://127.0.0.1:8085}
+    access-token: ${XXL_JOB_TOKEN:default_token}
+    appname: monitor-collector
+    port: 9999
+    log-path: ./logs/xxl-job
+    log-retention-days: 30
+
+# 采集账号密码加解密密钥（AES-GCM）；必须与 admin 端一致，采集时解密使用
+monitor:
+  crypto:
+    password-key: ${MONITOR_CRYPTO_PASSWORD_KEY:change-me-monitor-crypto-key-please-override}
+
+collector:
+  # 节点内采集并发（线程池 + 目标库并发限流）
+  concurrency:
+    pool-size: 8
+    # 分钟级单实例超时；小时/天级含重查询（information_schema.tables、表 I/O 差值等），预算单列
+    instance-timeout-ms: 15000
+    hourly-instance-timeout-ms: 120000
+    daily-instance-timeout-ms: 180000
+  ts-write:
+    metric-chunk-size: 200
+    text-chunk-size: 200
+    top-sql-chunk-size: 100
+    long-conn-chunk-size: 100
+    capacity-object-chunk-size: 200
+    slow-log-ms: 2000
+
+alert:
+  # 告警评估：挂起事件自愈兜底
+  evaluate:
+    self-heal-enabled: ${ALERT_SELF_HEAL_ENABLED:true}
+    metric-missing-recover-minutes: ${ALERT_METRIC_MISSING_RECOVER_MINUTES:30}
+    # 指标缺失兜底告警：开启后指标长期无采集数据（且无对应活跃事件）时主动建单，使采集中断可被感知
+    alert-on-metric-missing: ${ALERT_ON_METRIC_MISSING:false}
+  notify:
+    # 通知记录保留清理，防止表无限增长
+    retention-days: ${ALERT_NOTIFY_RETENTION_DAYS:30}
+    cleanup-batch-size: ${ALERT_NOTIFY_CLEANUP_BATCH_SIZE:2000}
+    # 规则未显式配置 silencePeriod 时的默认重复通知静默期（分钟）
+    default-silence-period-minutes: ${ALERT_NOTIFY_DEFAULT_SILENCE_MINUTES:30}
+    # 通知异步发送线程池：慢发送不阻塞评估主循环
+    async:
+      pool-size: ${ALERT_NOTIFY_ASYNC_POOL_SIZE:4}
+      queue-capacity: ${ALERT_NOTIFY_ASYNC_QUEUE_CAPACITY:500}
+    # 告警风暴抑制：同实例窗口内通知超阈值后抑制逐条通知并发聚合摘要（threshold<=0 关闭）
+    storm:
+      window-minutes: ${ALERT_NOTIFY_STORM_WINDOW_MINUTES:5}
+      threshold: ${ALERT_NOTIFY_STORM_THRESHOLD:10}
+      digest-interval-minutes: ${ALERT_NOTIFY_STORM_DIGEST_INTERVAL_MINUTES:10}
+    retry:
+      max-retry: ${ALERT_NOTIFY_MAX_RETRY:3}
+      batch-size: ${ALERT_NOTIFY_RETRY_BATCH_SIZE:50}
+      backoff-seconds: ${ALERT_NOTIFY_RETRY_BACKOFF_SECONDS:300}
+      # sending 态超过该分钟数未更新视为认领方崩溃，可被重新认领
+      stale-sending-minutes: ${ALERT_NOTIFY_STALE_SENDING_MINUTES:10}
+    email:
+      enabled: ${ALERT_EMAIL_ENABLED:false}
+      provider: ${ALERT_EMAIL_PROVIDER:default}
+      from: ${ALERT_EMAIL_FROM:}
+    sms:
+      enabled: ${ALERT_SMS_ENABLED:false}
+      # 短信供应商：aliyun（阿里云 SDK）/ http（通用 HTTP 网关，项目化适配）
+      provider: ${ALERT_SMS_PROVIDER:aliyun}
+      aliyun:
+        access-key-id: ${ALERT_ALIYUN_ACCESS_KEY_ID:}
+        access-key-secret: ${ALERT_ALIYUN_ACCESS_KEY_SECRET:}
+        endpoint: ${ALERT_ALIYUN_SMS_ENDPOINT:dysmsapi.aliyuncs.com}
+        sign-name: ${ALERT_ALIYUN_SMS_SIGN_NAME:}
+        template-code: ${ALERT_ALIYUN_SMS_TEMPLATE_CODE:}
+      # 通用 HTTP 短信网关（provider=http 时生效）：
+      # body-template 占位符 {phone} {message} {ruleName} {instanceName} {ruleLevel} {kind}
+      # 例：'{"mobile":"{phone}","content":"[数据库监控] {ruleName}: {message}"}'
+      http:
+        url: ${ALERT_SMS_HTTP_URL:}
+        body-template: ${ALERT_SMS_HTTP_BODY_TEMPLATE:}
+        content-type: ${ALERT_SMS_HTTP_CONTENT_TYPE:application/json}
+        # HTTP 2xx 且响应体包含该关键字才判定成功；留空只看状态码
+        success-keyword: ${ALERT_SMS_HTTP_SUCCESS_KEYWORD:}
+        timeout-seconds: ${ALERT_SMS_HTTP_TIMEOUT_SECONDS:8}
+
+# collector 无需对外提供 Web API；如需健康检查可保留一个轻量端口
+server:
+  port: 8090
+
+logging:
+  level:
+    com.lzzh.monitor: debug
