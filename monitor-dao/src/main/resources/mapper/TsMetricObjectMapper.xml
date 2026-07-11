@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsMetricObjectMapper">
+    <select id="selectTopN" resultType="java.util.Map">
+        SELECT object_name, object_type, value, collect_time
+        FROM (
+          SELECT DISTINCT ON (object_name)
+                 object_name, object_type, value, collect_time
+          FROM metric_capacity_object
+          WHERE instance_id = #{instanceId}
+            AND metric_code = #{metricCode}
+            AND collect_time > NOW() - INTERVAL '2 hours'
+          ORDER BY object_name, collect_time DESC
+        ) latest
+        ORDER BY value DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countLatest" resultType="long">
+        SELECT COUNT(*)
+        FROM (
+          SELECT DISTINCT ON (object_name) object_name
+          FROM metric_capacity_object
+          WHERE instance_id = #{instanceId}
+            AND metric_code = #{metricCode}
+            AND collect_time > NOW() - INTERVAL '2 hours'
+          ORDER BY object_name, collect_time DESC
+        ) latest
+    </select>
+
+    <select id="selectPage" resultType="java.util.Map">
+        SELECT object_name, object_type, value, collect_time
+        FROM (
+          SELECT DISTINCT ON (object_name)
+                 object_name, object_type, value, collect_time
+          FROM metric_capacity_object
+          WHERE instance_id = #{instanceId}
+            AND metric_code = #{metricCode}
+            AND collect_time > NOW() - INTERVAL '2 hours'
+          ORDER BY object_name, collect_time DESC
+        ) latest
+        ORDER BY value DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectLatestByNames" resultType="java.util.Map">
+        SELECT object_name, object_type, value, collect_time
+        FROM (
+          SELECT DISTINCT ON (object_name)
+                 object_name, object_type, value, collect_time
+          FROM metric_capacity_object
+          WHERE instance_id = #{instanceId}
+            AND metric_code = #{metricCode}
+            AND collect_time &gt; NOW() - INTERVAL '2 hours'
+            AND object_name IN
+            <foreach collection="objectNames" item="n" open="(" separator="," close=")">#{n}</foreach>
+          ORDER BY object_name, collect_time DESC
+        ) latest
+    </select>
+</mapper>

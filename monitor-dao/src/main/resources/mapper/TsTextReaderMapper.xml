@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsTextReaderMapper">
+    <select id="selectLatestFrom1m" resultType="java.util.Map">
+        SELECT DISTINCT ON (metric_code) metric_code, value_text, collect_time
+        FROM metric_text_data_1m
+        WHERE instance_id = #{instanceId}
+          AND metric_code IN
+          <foreach collection="metricCodes" item="code" open="(" separator="," close=")">
+              #{code}
+          </foreach>
+          AND collect_time > NOW() - INTERVAL '30 minutes'
+        ORDER BY metric_code, collect_time DESC
+    </select>
+
+    <select id="selectLatestFrom1h" resultType="java.util.Map">
+        SELECT DISTINCT ON (metric_code) metric_code, value_text, collect_time
+        FROM metric_text_data_1h
+        WHERE instance_id = #{instanceId}
+          AND metric_code IN
+          <foreach collection="metricCodes" item="code" open="(" separator="," close=")">
+              #{code}
+          </foreach>
+          AND collect_time > NOW() - INTERVAL '2 hours'
+        ORDER BY metric_code, collect_time DESC
+    </select>
+
+    <select id="selectLatestFrom1d" resultType="java.util.Map">
+        SELECT DISTINCT ON (metric_code) metric_code, value_text, collect_time
+        FROM metric_text_data_1d
+        WHERE instance_id = #{instanceId}
+          AND metric_code IN
+          <foreach collection="metricCodes" item="code" open="(" separator="," close=")">
+              #{code}
+          </foreach>
+          AND collect_time > NOW() - INTERVAL '2 days'
+        ORDER BY metric_code, collect_time DESC
+    </select>
+
+    <select id="selectHistoryFrom1d" resultType="java.util.Map">
+        SELECT metric_code, value_text, collect_time
+        FROM metric_text_data_1d
+        WHERE instance_id = #{instanceId}
+          AND metric_code = #{metricCode}
+        ORDER BY collect_time DESC
+        LIMIT 100
+    </select>
+
+    <select id="selectRangeFrom1m" resultType="java.util.Map">
+        SELECT metric_code, value_text, collect_time
+        FROM metric_text_data_1m
+        WHERE instance_id = #{instanceId}
+          AND metric_code = #{metricCode}
+          AND collect_time >= to_timestamp(#{fromMs} / 1000.0)
+          AND collect_time &lt;= to_timestamp(#{toMs} / 1000.0)
+        ORDER BY collect_time ASC
+        LIMIT 2000
+    </select>
+</mapper>

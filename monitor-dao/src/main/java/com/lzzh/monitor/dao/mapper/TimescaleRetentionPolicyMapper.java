@@ -19,8 +19,6 @@ public interface TimescaleRetentionPolicyMapper {
     @Select("SELECT remove_retention_policy(CAST(#{table} AS regclass), if_exists => true)")
     Object removeRetentionPolicy(@Param("table") String table);
 
-    @Select("SELECT add_retention_policy(CAST(#{table} AS regclass), "
-            + "make_interval(days => #{retentionDays}), if_not_exists => true)")
     Object addRetentionPolicy(@Param("table") String table,
                               @Param("retentionDays") int retentionDays);
 }

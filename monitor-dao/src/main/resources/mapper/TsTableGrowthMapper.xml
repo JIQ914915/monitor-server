@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsTableGrowthMapper">
+    <select id="selectTopN" resultType="java.util.Map">
+        SELECT a.object_name, a.object_type,
+               a.value AS current_bytes,
+               b.value AS prev_week_bytes,
+               (a.value - b.value) AS growth_bytes,
+               CASE WHEN b.value IS NOT NULL AND b.value > 0
+                    THEN ROUND(((a.value - b.value) / b.value * 100)::NUMERIC, 2)
+                    ELSE NULL
+               END AS growth_rate_pct
+        FROM (
+          SELECT DISTINCT ON (object_name) object_name, object_type, value
+          FROM metric_capacity_object
+          WHERE instance_id = #{instanceId}
+            AND metric_code = #{metricCode}
+            AND collect_time > NOW() - INTERVAL '2 hours'
+          ORDER BY object_name, collect_time DESC
+        ) a
+        LEFT JOIN (
+          SELECT DISTINCT ON (object_name) object_name, value
+          FROM metric_capacity_object
+          WHERE instance_id = #{instanceId}
+            AND metric_code = #{metricCode}
+            AND collect_time > NOW() - INTERVAL '7 days 2 hours'
+            AND collect_time &lt;= NOW() - INTERVAL '6 days 22 hours'
+          ORDER BY object_name, collect_time DESC
+        ) b ON a.object_name = b.object_name
+        ORDER BY growth_bytes DESC NULLS LAST, a.value DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

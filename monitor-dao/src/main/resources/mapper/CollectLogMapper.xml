@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.CollectLogMapper">
+    <select id="selectLatestPerTask" resultType="map">
+        SELECT DISTINCT ON (l.instance_id, l.frequency)
+            l.instance_id,
+            l.frequency,
+            l.collect_time   AS last_collect_time,
+            l.duration_ms    AS last_duration_ms,
+            l.metric_count   AS last_metric_count,
+            l.success        AS last_success,
+            l.error_message  AS last_error_message,
+            (SELECT COUNT(*) FROM collect_log s
+             WHERE s.instance_id = l.instance_id AND s.frequency = l.frequency
+               AND s.collect_time &gt;= now() - INTERVAL '24 hours') AS total_24h,
+            (SELECT COUNT(*) FROM collect_log s
+             WHERE s.instance_id = l.instance_id AND s.frequency = l.frequency
+               AND s.collect_time &gt;= now() - INTERVAL '24 hours'
+               AND s.success = TRUE) AS success_24h
+        FROM collect_log l
+        ORDER BY l.instance_id, l.frequency, l.collect_time DESC
+    </select>
+
+    <select id="selectRecent" resultType="com.lzzh.monitor.dao.entity.CollectLog">
+        SELECT id, instance_id, frequency, collect_time, duration_ms,
+               metric_count, text_count, object_count, success, error_message
+        FROM collect_log
+        WHERE instance_id = #{instanceId} AND frequency = #{frequency}
+        ORDER BY collect_time DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

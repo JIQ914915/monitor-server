@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsTopSqlQueryMapper">
+    <select id="selectDigestPage" resultType="java.util.Map">
+        SELECT schema_name, digest,
+          max(digest_text)          AS digest_text,
+          sum(delta_count)          AS exec_count,
+          sum(delta_timer_wait)     AS total_timer_wait,
+          CASE WHEN sum(delta_count) > 0
+               THEN sum(delta_timer_wait) / 1000000 / sum(delta_count) ELSE 0 END AS avg_timer_wait_us,
+          max(avg_timer_wait_us)    AS max_avg_timer_wait_us,
+          sum(delta_rows_examined)  AS rows_examined,
+          sum(delta_rows_sent)      AS rows_sent,
+          sum(delta_lock_time)      AS lock_time,
+          sum(delta_sort_rows)      AS sort_rows,
+          sum(delta_no_index_used)  AS no_index_used,
+          sum(delta_tmp_tables)     AS tmp_tables,
+          sum(delta_tmp_disk_tables) AS tmp_disk_tables,
+          min(collect_time)         AS first_seen,
+          max(collect_time)         AS last_seen
+        FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND collect_time &gt;= #{from} AND collect_time &lt;= #{to}
+          <if test="keyword != null and keyword != ''">
+            AND digest_text ILIKE '%' || #{keyword} || '%'
+          </if>
+          <if test="schemaName != null and schemaName != ''">
+            AND schema_name = #{schemaName}
+          </if>
+          <if test="sqlTypePrefix != null">
+            AND upper(digest_text) LIKE #{sqlTypePrefix}
+          </if>
+        GROUP BY schema_name, digest
+        <if test="minAvgUs != null or maxAvgUs != null">
+          HAVING 1 = 1
+          <if test="minAvgUs != null">
+            AND CASE WHEN sum(delta_count) > 0
+                THEN sum(delta_timer_wait) / 1000000 / sum(delta_count) ELSE 0 END &gt;= #{minAvgUs}
+          </if>
+          <if test="maxAvgUs != null">
+            AND CASE WHEN sum(delta_count) > 0
+                THEN sum(delta_timer_wait) / 1000000 / sum(delta_count) ELSE 0 END &lt;= #{maxAvgUs}
+          </if>
+        </if>
+        ORDER BY ${orderBy}
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countDigest" resultType="long">
+        SELECT count(*) FROM (
+        SELECT 1
+        FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND collect_time &gt;= #{from} AND collect_time &lt;= #{to}
+          <if test="keyword != null and keyword != ''">
+            AND digest_text ILIKE '%' || #{keyword} || '%'
+          </if>
+          <if test="schemaName != null and schemaName != ''">
+            AND schema_name = #{schemaName}
+          </if>
+          <if test="sqlTypePrefix != null">
+            AND upper(digest_text) LIKE #{sqlTypePrefix}
+          </if>
+        GROUP BY schema_name, digest
+        <if test="minAvgUs != null or maxAvgUs != null">
+          HAVING 1 = 1
+          <if test="minAvgUs != null">
+            AND CASE WHEN sum(delta_count) > 0
+                THEN sum(delta_timer_wait) / 1000000 / sum(delta_count) ELSE 0 END &gt;= #{minAvgUs}
+          </if>
+          <if test="maxAvgUs != null">
+            AND CASE WHEN sum(delta_count) > 0
+                THEN sum(delta_timer_wait) / 1000000 / sum(delta_count) ELSE 0 END &lt;= #{maxAvgUs}
+          </if>
+        </if>
+        ) t
+    </select>
+
+    <select id="selectWindowStats" resultType="java.util.Map">
+        SELECT count(*)                       AS digest_count,
+          COALESCE(sum(exec_count), 0)      AS total_exec_count,
+          COALESCE(sum(total_wait), 0)      AS total_timer_wait,
+          COALESCE(max(max_avg_us), 0)      AS max_avg_timer_wait_us,
+          COALESCE(sum(rows_exam), 0)       AS total_rows_examined,
+          count(*) FILTER (WHERE no_index_used > 0) AS no_index_digest_count,
+          count(*) FILTER (WHERE tmp_tables > 0 OR tmp_disk_tables > 0) AS tmp_table_digest_count
+        FROM (
+          SELECT sum(delta_count)          AS exec_count,
+                 sum(delta_timer_wait)     AS total_wait,
+                 max(avg_timer_wait_us)    AS max_avg_us,
+                 sum(delta_rows_examined)  AS rows_exam,
+                 COALESCE(sum(delta_no_index_used), 0)   AS no_index_used,
+                 COALESCE(sum(delta_tmp_tables), 0)      AS tmp_tables,
+                 COALESCE(sum(delta_tmp_disk_tables), 0) AS tmp_disk_tables
+          FROM metric_top_sql
+          WHERE instance_id = #{instanceId}
+            AND collect_time >= #{from} AND collect_time &lt;= #{to}
+          GROUP BY schema_name, digest
+        ) t
+    </select>
+
+    <select id="selectRecordsPage" resultType="java.util.Map">
+        SELECT collect_time, schema_name, digest, digest_text,
+          delta_count, avg_timer_wait_us, delta_timer_wait,
+          delta_rows_examined, delta_rows_sent,
+          delta_lock_time, delta_sort_rows, delta_no_index_used,
+          delta_tmp_tables, delta_tmp_disk_tables
+        FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND collect_time &gt;= #{from} AND collect_time &lt;= #{to}
+          <if test="sqlTypePrefix != null">
+            AND upper(digest_text) LIKE #{sqlTypePrefix}
+          </if>
+          <if test="minAvgUs != null">
+            AND avg_timer_wait_us &gt;= #{minAvgUs}
+          </if>
+          <if test="maxAvgUs != null">
+            AND avg_timer_wait_us &lt;= #{maxAvgUs}
+          </if>
+          <if test="digest != null">
+            AND digest = #{digest}
+            AND schema_name IS NOT DISTINCT FROM #{targetSchema,jdbcType=VARCHAR}
+          </if>
+        ORDER BY collect_time DESC, avg_timer_wait_us DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countRecords" resultType="long">
+        SELECT count(*) FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND collect_time &gt;= #{from} AND collect_time &lt;= #{to}
+          <if test="sqlTypePrefix != null">
+            AND upper(digest_text) LIKE #{sqlTypePrefix}
+          </if>
+          <if test="minAvgUs != null">
+            AND avg_timer_wait_us &gt;= #{minAvgUs}
+          </if>
+          <if test="maxAvgUs != null">
+            AND avg_timer_wait_us &lt;= #{maxAvgUs}
+          </if>
+          <if test="digest != null">
+            AND digest = #{digest}
+            AND schema_name IS NOT DISTINCT FROM #{targetSchema,jdbcType=VARCHAR}
+          </if>
+    </select>
+
+    <select id="selectDigestDetail" resultType="java.util.Map">
+        SELECT schema_name, digest,
+          max(digest_text)          AS digest_text,
+          sum(delta_count)          AS exec_count,
+          sum(delta_timer_wait)     AS total_timer_wait,
+          CASE WHEN sum(delta_count) > 0
+               THEN sum(delta_timer_wait) / 1000000 / sum(delta_count) ELSE 0 END AS avg_timer_wait_us,
+          max(avg_timer_wait_us)    AS max_avg_timer_wait_us,
+          sum(delta_rows_examined)  AS rows_examined,
+          sum(delta_rows_sent)      AS rows_sent,
+          sum(delta_lock_time)      AS lock_time,
+          sum(delta_sort_rows)      AS sort_rows,
+          sum(delta_no_index_used)  AS no_index_used,
+          sum(delta_tmp_tables)     AS tmp_tables,
+          sum(delta_tmp_disk_tables) AS tmp_disk_tables,
+          min(collect_time)         AS first_seen,
+          max(collect_time)         AS last_seen
+        FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND collect_time &gt;= #{from} AND collect_time &lt;= #{to}
+          AND digest = #{digest}
+          AND schema_name IS NOT DISTINCT FROM #{targetSchema,jdbcType=VARCHAR}
+        GROUP BY schema_name, digest
+        LIMIT 1
+    </select>
+
+    <select id="selectDigestTrend" resultType="java.util.Map">
+        SELECT collect_time, delta_count, avg_timer_wait_us, delta_rows_examined
+        FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND digest = #{digest}
+          AND schema_name IS NOT DISTINCT FROM #{schemaName,jdbcType=VARCHAR}
+          AND collect_time >= #{from} AND collect_time &lt;= #{to}
+        ORDER BY collect_time ASC
+        LIMIT 2000
+    </select>
+
+    <select id="selectSchemaNames" resultType="java.lang.String">
+        SELECT DISTINCT schema_name
+        FROM metric_top_sql
+        WHERE instance_id = #{instanceId}
+          AND collect_time >= #{from} AND collect_time &lt;= #{to}
+          AND schema_name IS NOT NULL
+        ORDER BY schema_name
+        LIMIT 200
+    </select>
+</mapper>

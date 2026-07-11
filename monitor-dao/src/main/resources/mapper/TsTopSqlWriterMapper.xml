@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsTopSqlWriterMapper">
+    <insert id="insertBatch">
+        INSERT INTO metric_top_sql
+        (instance_id, schema_name, digest, digest_text,
+         count_star, sum_timer_wait, rows_examined, rows_sent,
+         delta_count, delta_timer_wait, avg_timer_wait_us,
+         delta_rows_examined, delta_rows_sent,
+         delta_lock_time, delta_sort_rows, delta_no_index_used,
+         delta_tmp_tables, delta_tmp_disk_tables, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{it.instanceId}, #{it.schemaName}, #{it.digest}, #{it.digestText},
+             #{it.countStar}, #{it.sumTimerWait}, #{it.rowsExamined}, #{it.rowsSent},
+             #{it.deltaCount}, #{it.deltaTimerWait}, #{it.avgTimerWaitUs},
+             #{it.deltaRowsExamined}, #{it.deltaRowsSent},
+             #{it.deltaLockTime}, #{it.deltaSortRows}, #{it.deltaNoIndexUsed},
+             #{it.deltaTmpTables}, #{it.deltaTmpDiskTables}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+    </insert>
+</mapper>

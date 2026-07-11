@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsCapacityObjectWriterMapper">
+    <insert id="insertBatch">
+        INSERT INTO metric_capacity_object (instance_id, metric_code, object_type, object_name, value, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{it.instanceId}, #{it.metric}, #{it.objectType}, #{it.objectName},
+             #{it.value}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+    </insert>
+</mapper>

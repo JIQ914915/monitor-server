@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.MetricValueQueryMapper">
+    <select id="selectLatest1m" resultType="double">
+        SELECT value FROM metric_data_1m
+        WHERE instance_id = #{instanceId} AND metric_code = #{metricCode}
+        AND collect_time &gt;= now() - make_interval(mins =&gt; #{windowMinutes})
+        ORDER BY collect_time DESC LIMIT 1
+    </select>
+
+    <select id="selectLatest1h" resultType="double">
+        SELECT value FROM metric_data_1h
+        WHERE instance_id = #{instanceId} AND metric_code = #{metricCode}
+        AND collect_time &gt;= now() - make_interval(hours =&gt; #{windowHours})
+        ORDER BY collect_time DESC LIMIT 1
+    </select>
+
+    <select id="selectLatest1d" resultType="double">
+        SELECT value FROM metric_data_1d
+        WHERE instance_id = #{instanceId} AND metric_code = #{metricCode}
+        AND collect_time &gt;= now() - make_interval(days =&gt; #{windowDays})
+        ORDER BY collect_time DESC LIMIT 1
+    </select>
+
+    <select id="selectValueAt1m" resultType="double">
+        SELECT value FROM metric_data_1m
+        WHERE instance_id = #{instanceId} AND metric_code = #{metricCode}
+        AND collect_time &gt;= now() - make_interval(mins =&gt; #{offsetMinutes} + #{toleranceMinutes})
+        AND collect_time &lt;= now() - make_interval(mins =&gt; #{offsetMinutes} - #{toleranceMinutes})
+        ORDER BY collect_time DESC LIMIT 1
+    </select>
+
+    <select id="selectValueAt1h" resultType="double">
+        SELECT value FROM metric_data_1h
+        WHERE instance_id = #{instanceId} AND metric_code = #{metricCode}
+        AND collect_time &gt;= now() - make_interval(mins =&gt; #{offsetMinutes} + #{toleranceMinutes})
+        AND collect_time &lt;= now() - make_interval(mins =&gt; #{offsetMinutes} - #{toleranceMinutes})
+        ORDER BY collect_time DESC LIMIT 1
+    </select>
+
+    <select id="selectValueAt1d" resultType="double">
+        SELECT value FROM metric_data_1d
+        WHERE instance_id = #{instanceId} AND metric_code = #{metricCode}
+        AND collect_time &gt;= now() - make_interval(mins =&gt; #{offsetMinutes} + #{toleranceMinutes})
+        AND collect_time &lt;= now() - make_interval(mins =&gt; #{offsetMinutes} - #{toleranceMinutes})
+        ORDER BY collect_time DESC LIMIT 1
+    </select>
+</mapper>

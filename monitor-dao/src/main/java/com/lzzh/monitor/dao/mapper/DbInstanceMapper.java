@@ -24,8 +24,6 @@ public interface DbInstanceMapper extends BaseMapper<DbInstance> {
      * @param shardTotal 分片总数
      * @return 属于该分片的实例列表（含全部列）
      */
-    @Select("SELECT * FROM db_instance "
-            + "WHERE ABS(HASHTEXT(instance_code)) % #{shardTotal} = #{shardIndex}")
     List<DbInstance> selectByShard(@Param("shardIndex") int shardIndex,
                                    @Param("shardTotal") int shardTotal);
 
@@ -44,11 +42,5 @@ public interface DbInstanceMapper extends BaseMapper<DbInstance> {
      * @param groupIds 分组ID集合，禁止为空（空集合调用方应自行短路，避免生成非法 SQL）
      * @return 归属其中任一分组的实例 ID 列表
      */
-    @Select("<script>"
-            + "SELECT DISTINCT id FROM db_instance WHERE "
-            + "<foreach collection='groupIds' item='gid' open='(' separator=' OR ' close=')'>"
-            + "group_ids @> CONCAT('[', #{gid}, ']')::jsonb"
-            + "</foreach>"
-            + "</script>")
     List<Long> selectIdsByGroupIds(@Param("groupIds") Collection<Long> groupIds);
 }

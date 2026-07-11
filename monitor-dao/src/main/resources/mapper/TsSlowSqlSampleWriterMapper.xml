@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsSlowSqlSampleWriterMapper">
+    <insert id="insertBatch">
+        INSERT INTO metric_slow_sql_sample
+        (instance_id, thread_id, event_id, conn_user, conn_host, schema_name, digest, sql_text,
+         exec_time_us, lock_time_us, rows_examined, rows_sent, sort_rows,
+         no_index_used, tmp_tables, tmp_disk_tables, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{instanceId}, #{it.threadId}, #{it.eventId}, #{it.connUser,jdbcType=VARCHAR},
+             #{it.connHost,jdbcType=VARCHAR}, #{it.schemaName,jdbcType=VARCHAR},
+             #{it.digest,jdbcType=VARCHAR}, #{it.sqlText,jdbcType=VARCHAR},
+             #{it.execTimeUs}, #{it.lockTimeUs}, #{it.rowsExamined}, #{it.rowsSent}, #{it.sortRows},
+             #{it.noIndexUsed}, #{it.tmpTables}, #{it.tmpDiskTables},
+             to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+    </insert>
+</mapper>

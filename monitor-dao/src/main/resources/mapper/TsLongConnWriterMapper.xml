@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsLongConnWriterMapper">
+    <insert id="insertBatch">
+        INSERT INTO metric_long_conn
+        (instance_id, conn_id, conn_user, conn_host, conn_db, command, time_seconds, state, info, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{instanceId}, #{it.connId}, #{it.connUser}, #{it.connHost}, #{it.connDb},
+             #{it.command}, #{it.timeSeconds}, #{it.state}, #{it.info}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+    </insert>
+</mapper>

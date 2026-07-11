@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.AlertNotifyRecordMapper">
+    <select id="claimRetryCandidates" resultType="com.lzzh.monitor.dao.entity.AlertNotifyRecord">
+        WITH claimed AS (
+            SELECT id
+            FROM alert_notify_record
+            WHERE retry_count &lt; max_retry
+              AND (
+                    (status = 'failed' AND (next_retry_time IS NULL OR next_retry_time &lt;= now()))
+                    OR (status = 'pending' AND created_at &lt;= now() - interval '2 minutes')
+                    OR (status = 'sending' AND updated_at &lt;= now() - make_interval(mins => #{staleSendingMinutes}))
+                  )
+            ORDER BY updated_at ASC
+            LIMIT #{limit}
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE alert_notify_record r
+        SET status = 'sending', updated_at = now()
+        FROM claimed
+        WHERE r.id = claimed.id
+        RETURNING r.*
+    </select>
+
+    <update id="tryClaimPending">
+        UPDATE alert_notify_record
+        SET status = 'sending', updated_at = now()
+        WHERE id = #{id}
+          AND status = 'pending'
+    </update>
+
+    <delete id="deleteRetired">
+        DELETE FROM alert_notify_record
+        WHERE id IN (
+            SELECT id FROM alert_notify_record
+            WHERE created_at &lt; now() - make_interval(days => #{retentionDays})
+              AND (status IN ('success', 'dead') OR (status = 'failed' AND retry_count &gt;= max_retry))
+            ORDER BY id
+            LIMIT #{limit}
+        )
+    </delete>
+
+    <update id="resetDeadForResend">
+        UPDATE alert_notify_record
+        SET status = 'failed', retry_count = 0, next_retry_time = now(), updated_at = now()
+        WHERE id = #{id} AND status = 'dead'
+    </update>
+</mapper>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsTextWriterMapper">
+    <insert id="upsertText1m">
+        INSERT INTO metric_text_data_1m (instance_id, metric_code, value_text, value_hash, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{it.instanceId}, #{it.metric}, #{it.valueText}, #{it.valueHash}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+        ON CONFLICT (instance_id, metric_code, collect_time) DO UPDATE
+        SET value_text = EXCLUDED.value_text, value_hash = EXCLUDED.value_hash
+    </insert>
+
+    <insert id="upsertText1h">
+        INSERT INTO metric_text_data_1h (instance_id, metric_code, value_text, value_hash, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{it.instanceId}, #{it.metric}, #{it.valueText}, #{it.valueHash}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+        ON CONFLICT (instance_id, metric_code, collect_time) DO UPDATE
+        SET value_text = EXCLUDED.value_text, value_hash = EXCLUDED.value_hash
+    </insert>
+
+    <insert id="upsertText1d">
+        INSERT INTO metric_text_data_1d (instance_id, metric_code, value_text, value_hash, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{it.instanceId}, #{it.metric}, #{it.valueText}, #{it.valueHash}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+        ON CONFLICT (instance_id, metric_code, collect_time) DO UPDATE
+        SET value_text = EXCLUDED.value_text, value_hash = EXCLUDED.value_hash
+    </insert>
+</mapper>

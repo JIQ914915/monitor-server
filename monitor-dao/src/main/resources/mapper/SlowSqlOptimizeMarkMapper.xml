@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.SlowSqlOptimizeMarkMapper">
+    <update id="upsertStatus">
+        INSERT INTO slow_sql_optimize_mark (instance_id, schema_name, digest, status, updated_by)
+        VALUES (#{instanceId}, #{schemaName,jdbcType=VARCHAR}, #{digest}, #{status}, #{updatedBy,jdbcType=VARCHAR})
+        ON CONFLICT (instance_id, COALESCE(schema_name, ''), digest)
+        DO UPDATE SET status = EXCLUDED.status, updated_by = EXCLUDED.updated_by, updated_at = now()
+    </update>
+</mapper>

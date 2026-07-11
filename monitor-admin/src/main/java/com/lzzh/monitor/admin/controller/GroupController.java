@@ -12,6 +12,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.group.InstanceGroupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,11 +28,8 @@ import java.util.List;
 @RequestMapping("/api/v1/groups")
 public class GroupController {
 
-    private final InstanceGroupService groupService;
-
-    public GroupController(InstanceGroupService groupService) {
-        this.groupService = groupService;
-    }
+    @Resource
+    private InstanceGroupService groupService;
 
     /**
      * 分页查询分组。

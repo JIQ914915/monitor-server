@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsTempTableStatsMapper">
+    <select id="selectTodayStats" resultType="java.util.Map">
+        SELECT
+          COALESCE(SUM(CASE WHEN metric_code = 'mysql.delta.created_tmp_tables'      THEN value ELSE 0 END), 0) AS tmp_tables_today,
+          COALESCE(SUM(CASE WHEN metric_code = 'mysql.delta.created_tmp_disk_tables' THEN value ELSE 0 END), 0) AS tmp_disk_tables_today,
+          COALESCE(SUM(CASE WHEN metric_code = 'mysql.delta.slow_queries'             THEN value ELSE 0 END), 0) AS slow_queries_today
+        FROM metric_data_1m
+        WHERE instance_id = #{instanceId}
+          AND metric_code IN ('mysql.delta.created_tmp_tables',
+                              'mysql.delta.created_tmp_disk_tables',
+                              'mysql.delta.slow_queries')
+          AND collect_time >= date_trunc('day', NOW() AT TIME ZONE 'Asia/Shanghai') AT TIME ZONE 'Asia/Shanghai'
+    </select>
+</mapper>
