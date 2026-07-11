@@ -10,30 +10,11 @@ import com.lzzh.monitor.api.response.AlertEventDrilldownVo;
 import com.lzzh.monitor.api.response.AlertEventOperateLogVo;
 import com.lzzh.monitor.api.response.AlertEventVo;
 import com.lzzh.monitor.api.response.AlertNotifyRecordVo;
+import com.lzzh.monitor.common.constant.Constants;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.common.result.PageResult;
-import com.lzzh.monitor.common.constant.Constants;
-import com.lzzh.monitor.dao.entity.AlertEvent;
-import com.lzzh.monitor.dao.entity.AlertEventOperateLog;
-import com.lzzh.monitor.dao.entity.AlertNotifyRecord;
-import com.lzzh.monitor.dao.entity.SysUser;
-import com.lzzh.monitor.dao.entity.AlertRule;
-import com.lzzh.monitor.dao.entity.DatabaseType;
-import com.lzzh.monitor.dao.entity.DbInstance;
-import com.lzzh.monitor.dao.entity.KnowledgeArticle;
-import com.lzzh.monitor.dao.entity.MetricDefinition;
-import com.lzzh.monitor.dao.entity.MonitorScenario;
-import com.lzzh.monitor.dao.mapper.AlertEvaluateWindowMapper;
-import com.lzzh.monitor.dao.mapper.AlertRuleMapper;
-import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
-import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
-import com.lzzh.monitor.dao.mapper.AlertEventMapper;
-import com.lzzh.monitor.dao.mapper.AlertEventOperateLogMapper;
-import com.lzzh.monitor.dao.mapper.AlertNotifyRecordMapper;
-import com.lzzh.monitor.dao.mapper.KnowledgeArticleMapper;
-import com.lzzh.monitor.dao.mapper.MetricDefinitionMapper;
-import com.lzzh.monitor.dao.mapper.MonitorScenarioMapper;
-import com.lzzh.monitor.dao.mapper.SysUserMapper;
+import com.lzzh.monitor.dao.entity.*;
+import com.lzzh.monitor.dao.mapper.*;
 import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import jakarta.annotation.Resource;
@@ -44,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
@@ -74,7 +56,7 @@ public class AlertEventServiceImpl implements AlertEventService {
     static final List<String> CLOSEABLE_STATUSES = List.of("confirmed", "handling");
     /** 人工关闭后短期抑制同 dedupKey 重开，避免指标仍异常时下一轮立即建单。 */
     private static final int DEFAULT_CLOSE_SUPPRESS_HOURS = 2;
-    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
     private static final int REMARK_MAX_LEN = 500;
 
     @Resource

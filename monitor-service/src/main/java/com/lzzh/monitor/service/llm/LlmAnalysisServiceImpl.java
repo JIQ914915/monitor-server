@@ -33,6 +33,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -57,7 +58,7 @@ import java.util.regex.Pattern;
 public class LlmAnalysisServiceImpl implements LlmAnalysisService {
 
     private static final Logger log = LoggerFactory.getLogger(LlmAnalysisServiceImpl.class);
-    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     private static final String SYSTEM_PROMPT = """
             你是一名资深数据库 DBA（精通 MySQL 与 PostgreSQL），负责协助运维人员分析数据库监控告警事件。
