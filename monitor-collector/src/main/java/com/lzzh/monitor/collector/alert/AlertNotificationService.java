@@ -10,7 +10,9 @@ import com.lzzh.monitor.dao.entity.AlertNotifyRecord;
 import com.lzzh.monitor.dao.entity.AlertRule;
 import com.lzzh.monitor.dao.mapper.AlertNotifyChannelConfigMapper;
 import com.lzzh.monitor.dao.mapper.AlertNotifyRecordMapper;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -59,33 +61,29 @@ public class AlertNotificationService {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
-    private final AlertNotifyRecordMapper notifyRecordMapper;
-    private final AlertNotifyChannelConfigMapper channelConfigMapper;
-    private final AlertNotifyProperties properties;
-    private final ObjectProvider<JavaMailSender> mailSenderProvider;
-    private final AlertContactResolver contactResolver;
-    private final AlertStormGuard stormGuard;
-    private final PasswordCipher passwordCipher;
+    @Resource
+    private AlertNotifyRecordMapper notifyRecordMapper;
+    @Resource
+    private AlertNotifyChannelConfigMapper channelConfigMapper;
+    @Resource
+    private AlertNotifyProperties properties;
+    @Resource
+    private ObjectProvider<JavaMailSender> mailSenderProvider;
+    @Resource
+    private AlertContactResolver contactResolver;
+    @Resource
+    private AlertStormGuard stormGuard;
+    @Resource
+    private PasswordCipher passwordCipher;
+    @Resource
+    private List<SmsProvider> smsProviderList;
     /** 短信供应商 SPI：按 alert.notify.sms.provider 路由（aliyun / http / 项目自定义实现）。 */
-    private final Map<String, SmsProvider> smsProviders;
+    private Map<String, SmsProvider> smsProviders;
     /** 通知发送线程池：慢发送在此异步执行，不阻塞评估主循环。 */
-    private final ExecutorService sendExecutor;
+    private ExecutorService sendExecutor;
 
-    public AlertNotificationService(AlertNotifyRecordMapper notifyRecordMapper,
-                                    AlertNotifyChannelConfigMapper channelConfigMapper,
-                                    AlertNotifyProperties properties,
-                                    ObjectProvider<JavaMailSender> mailSenderProvider,
-                                    AlertContactResolver contactResolver,
-                                    AlertStormGuard stormGuard,
-                                    PasswordCipher passwordCipher,
-                                    List<SmsProvider> smsProviderList) {
-        this.notifyRecordMapper = notifyRecordMapper;
-        this.channelConfigMapper = channelConfigMapper;
-        this.properties = properties;
-        this.mailSenderProvider = mailSenderProvider;
-        this.contactResolver = contactResolver;
-        this.stormGuard = stormGuard;
-        this.passwordCipher = passwordCipher;
+    @PostConstruct
+    void init() {
         Map<String, SmsProvider> providers = new LinkedHashMap<>();
         for (SmsProvider p : smsProviderList) {
             providers.put(p.code().toLowerCase(java.util.Locale.ROOT), p);

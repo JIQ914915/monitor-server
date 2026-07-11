@@ -10,6 +10,7 @@ import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.TsBaselineQueryMapper;
 import com.lzzh.monitor.dao.ts.TsMetricWriter;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -73,20 +74,14 @@ public class BaselineDetectJobHandler {
                             "pg.baseline.conn_deviation_pct", "pg.baseline.conn_anomaly", 5.0))
     );
 
-    private final DbInstanceMapper dbInstanceMapper;
-    private final DatabaseTypeMapper databaseTypeMapper;
-    private final TsBaselineQueryMapper baselineQueryMapper;
-    private final TsMetricWriter metricWriter;
-
-    public BaselineDetectJobHandler(DbInstanceMapper dbInstanceMapper,
-                                    DatabaseTypeMapper databaseTypeMapper,
-                                    TsBaselineQueryMapper baselineQueryMapper,
-                                    TsMetricWriter metricWriter) {
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.baselineQueryMapper = baselineQueryMapper;
-        this.metricWriter = metricWriter;
-    }
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private TsBaselineQueryMapper baselineQueryMapper;
+    @Resource
+    private TsMetricWriter metricWriter;
 
     @XxlJob("baselineDetectJobHandler")
     public void detect() {

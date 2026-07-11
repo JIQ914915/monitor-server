@@ -12,6 +12,7 @@ import com.lzzh.monitor.dao.mapper.AlertEvaluateWindowMapper;
 import com.lzzh.monitor.dao.mapper.AlertEventMapper;
 import com.lzzh.monitor.dao.mapper.AlertRuleInstanceConfigMapper;
 import com.lzzh.monitor.dao.mapper.ScenarioInstanceConfigMapper;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -37,32 +38,22 @@ public class AlertEventLifecycleService {
     /** 场景来源事件的伪规则类型标记（rule.ruleType，非持久字段）。 */
     public static final String RULE_TYPE_SCENARIO = "scenario";
 
-    private final AlertEventMapper alertEventMapper;
-    private final AlertEvaluateWindowMapper alertEvaluateWindowMapper;
-    private final AlertRuleInstanceConfigMapper instanceConfigMapper;
-    private final ScenarioInstanceConfigMapper scenarioConfigMapper;
-    private final AlertNotificationService alertNotificationService;
-    private final AlertMessageRenderer messageRenderer;
-    private final AlertNotifyProperties notifyProperties;
-    private final BlockingChainSnapshotService blockingChainSnapshotService;
-
-    public AlertEventLifecycleService(AlertEventMapper alertEventMapper,
-                                      AlertEvaluateWindowMapper alertEvaluateWindowMapper,
-                                      AlertRuleInstanceConfigMapper instanceConfigMapper,
-                                      ScenarioInstanceConfigMapper scenarioConfigMapper,
-                                      AlertNotificationService alertNotificationService,
-                                      AlertMessageRenderer messageRenderer,
-                                      AlertNotifyProperties notifyProperties,
-                                      BlockingChainSnapshotService blockingChainSnapshotService) {
-        this.alertEventMapper = alertEventMapper;
-        this.alertEvaluateWindowMapper = alertEvaluateWindowMapper;
-        this.instanceConfigMapper = instanceConfigMapper;
-        this.scenarioConfigMapper = scenarioConfigMapper;
-        this.alertNotificationService = alertNotificationService;
-        this.messageRenderer = messageRenderer;
-        this.notifyProperties = notifyProperties;
-        this.blockingChainSnapshotService = blockingChainSnapshotService;
-    }
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertEvaluateWindowMapper alertEvaluateWindowMapper;
+    @Resource
+    private AlertRuleInstanceConfigMapper instanceConfigMapper;
+    @Resource
+    private ScenarioInstanceConfigMapper scenarioConfigMapper;
+    @Resource
+    private AlertNotificationService alertNotificationService;
+    @Resource
+    private AlertMessageRenderer messageRenderer;
+    @Resource
+    private AlertNotifyProperties notifyProperties;
+    @Resource
+    private BlockingChainSnapshotService blockingChainSnapshotService;
 
     /**
      * 场景综合事件载荷：触发时写入事件的来源标识、诊断结论与各信号快照。

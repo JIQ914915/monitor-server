@@ -14,7 +14,9 @@ import com.lzzh.monitor.dao.mapper.CollectLogMapper;
 import com.lzzh.monitor.dao.mapper.HostMapper;
 import com.lzzh.monitor.dao.ts.TsMetricWriter;
 import com.lzzh.monitor.dao.ts.TsTextWriter;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -53,30 +55,29 @@ public class HostCollectRunner {
     private static final String STATUS_ABNORMAL = "abnormal";
     private static final String STATUS_NORMAL = "normal";
 
-    private final HostCollector hostCollector;
-    private final TsMetricWriter tsMetricWriter;
-    private final TsTextWriter tsTextWriter;
-    private final CollectLogMapper collectLogMapper;
-    private final HostMapper hostMapper;
-    private final ExecutorService pool;
-    private final long hostTimeoutMs;
+    @Resource
+    private HostCollector hostCollector;
+    @Resource
+    private TsMetricWriter tsMetricWriter;
+    @Resource
+    private TsTextWriter tsTextWriter;
+    @Resource
+    private CollectLogMapper collectLogMapper;
+    @Resource
+    private HostMapper hostMapper;
+    @Resource
+    private CollectProperties props;
+
+    private ExecutorService pool;
+    private long hostTimeoutMs;
 
     /** 节点内连续拉取失败计数。 */
     private final ConcurrentHashMap<Long, AtomicInteger> consecutiveFailures = new ConcurrentHashMap<>();
     /** 重入保护：上一轮未结束时丢弃本轮调度。 */
     private final ReentrantLock roundLock = new ReentrantLock();
 
-    public HostCollectRunner(HostCollector hostCollector,
-                             TsMetricWriter tsMetricWriter,
-                             TsTextWriter tsTextWriter,
-                             CollectLogMapper collectLogMapper,
-                             HostMapper hostMapper,
-                             CollectProperties props) {
-        this.hostCollector = hostCollector;
-        this.tsMetricWriter = tsMetricWriter;
-        this.tsTextWriter = tsTextWriter;
-        this.collectLogMapper = collectLogMapper;
-        this.hostMapper = hostMapper;
+    @PostConstruct
+    void init() {
         int poolSize = Math.max(1, props.getPoolSize());
         this.pool = new ThreadPoolExecutor(poolSize, poolSize, 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(), r -> {

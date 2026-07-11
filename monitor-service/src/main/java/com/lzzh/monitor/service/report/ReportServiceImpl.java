@@ -46,6 +46,7 @@ import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.metric.MetricQueryService;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -108,71 +109,49 @@ public class ReportServiceImpl implements ReportService {
         PG_CORE_METRICS.put("pg.locks.waiting", new String[]{"等待中锁请求", ""});
     }
 
-    private final MonitorReportMapper reportMapper;
-    private final ReportScheduleMapper scheduleMapper;
-    private final ReportStatsMapper statsMapper;
-    private final DbInstanceMapper instanceMapper;
-    private final InstanceGroupMapper groupMapper;
-    private final SysUserMapper userMapper;
-    private final SysDictItemMapper dictItemMapper;
-    private final TsTopSqlQueryMapper topSqlMapper;
-    private final TsMetricLatestDao metricLatestDao;
-    private final TsCapacityGrowthDao capacityGrowthDao;
-    private final DataScopeService dataScopeService;
-    private final AlertDrilldownProfileService drilldownProfileService;
-    private final AlertEventMapper alertEventMapper;
-    private final AlertEventOperateLogMapper operateLogMapper;
-    private final AlertRuleMapper alertRuleMapper;
-    private final MetricDefinitionMapper metricDefinitionMapper;
-    private final CollectLogMapper collectLogMapper;
-    private final MetricQueryService metricQueryService;
-    private final ReportMailService reportMailService;
-    private final DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private MonitorReportMapper reportMapper;
+    @Resource
+    private ReportScheduleMapper scheduleMapper;
+    @Resource
+    private ReportStatsMapper statsMapper;
+    @Resource
+    private DbInstanceMapper instanceMapper;
+    @Resource
+    private InstanceGroupMapper groupMapper;
+    @Resource
+    private SysUserMapper userMapper;
+    @Resource
+    private SysDictItemMapper dictItemMapper;
+    @Resource
+    private TsTopSqlQueryMapper topSqlMapper;
+    @Resource
+    private TsMetricLatestDao metricLatestDao;
+    @Resource
+    private TsCapacityGrowthDao capacityGrowthDao;
+    @Resource
+    private DataScopeService dataScopeService;
+    @Resource
+    private AlertDrilldownProfileService drilldownProfileService;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertEventOperateLogMapper operateLogMapper;
+    @Resource
+    private AlertRuleMapper alertRuleMapper;
+    @Resource
+    private MetricDefinitionMapper metricDefinitionMapper;
+    @Resource
+    private CollectLogMapper collectLogMapper;
+    @Resource
+    private MetricQueryService metricQueryService;
+    @Resource
+    private ReportMailService reportMailService;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
 
     /** dbTypeId → 是否 PostgreSQL 的缓存（database_type 行数极少且编码不变更）。 */
     private final Map<Long, Boolean> pgTypeCache = new ConcurrentHashMap<>();
-
-    public ReportServiceImpl(MonitorReportMapper reportMapper,
-                             ReportScheduleMapper scheduleMapper,
-                             ReportStatsMapper statsMapper,
-                             DbInstanceMapper instanceMapper,
-                             InstanceGroupMapper groupMapper,
-                             SysUserMapper userMapper,
-                             SysDictItemMapper dictItemMapper,
-                             TsTopSqlQueryMapper topSqlMapper,
-                             TsMetricLatestDao metricLatestDao,
-                             TsCapacityGrowthDao capacityGrowthDao,
-                             DataScopeService dataScopeService,
-                             AlertDrilldownProfileService drilldownProfileService,
-                             AlertEventMapper alertEventMapper,
-                             AlertEventOperateLogMapper operateLogMapper,
-                             AlertRuleMapper alertRuleMapper,
-                             MetricDefinitionMapper metricDefinitionMapper,
-                             CollectLogMapper collectLogMapper,
-                             MetricQueryService metricQueryService,
-                             ReportMailService reportMailService,
-                             DatabaseTypeMapper databaseTypeMapper) {
-        this.reportMapper = reportMapper;
-        this.scheduleMapper = scheduleMapper;
-        this.statsMapper = statsMapper;
-        this.instanceMapper = instanceMapper;
-        this.groupMapper = groupMapper;
-        this.userMapper = userMapper;
-        this.dictItemMapper = dictItemMapper;
-        this.topSqlMapper = topSqlMapper;
-        this.metricLatestDao = metricLatestDao;
-        this.capacityGrowthDao = capacityGrowthDao;
-        this.dataScopeService = dataScopeService;
-        this.drilldownProfileService = drilldownProfileService;
-        this.alertEventMapper = alertEventMapper;
-        this.operateLogMapper = operateLogMapper;
-        this.alertRuleMapper = alertRuleMapper;
-        this.metricDefinitionMapper = metricDefinitionMapper;
-        this.collectLogMapper = collectLogMapper;
-        this.metricQueryService = metricQueryService;
-        this.reportMailService = reportMailService;
-        this.databaseTypeMapper = databaseTypeMapper;
-    }
 
     /** 实例是否为 PostgreSQL（决定报告段落使用 pg.* 还是 mysql.* 指标口径）。 */
     private boolean isPostgres(DbInstance ins) {

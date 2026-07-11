@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.alert.sms;
 
 import com.lzzh.monitor.collector.config.AlertNotifyProperties;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -34,14 +35,11 @@ import java.util.Map;
 @Component
 public class HttpSmsProvider implements SmsProvider {
 
-    private final AlertNotifyProperties properties;
+    @Resource
+    private AlertNotifyProperties properties;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
-
-    public HttpSmsProvider(AlertNotifyProperties properties) {
-        this.properties = properties;
-    }
 
     @Override
     public String code() {

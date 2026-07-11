@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.alert;
 
 import com.lzzh.monitor.collector.config.AlertNotifyProperties;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayDeque;
@@ -37,13 +38,10 @@ public class AlertStormGuard {
         static final Decision ALLOW = new Decision(Kind.ALLOW, 0);
     }
 
-    private final AlertNotifyProperties properties;
+    @Resource
+    private AlertNotifyProperties properties;
     private final ConcurrentHashMap<Long, InstanceWindow> windows = new ConcurrentHashMap<>();
     private volatile long lastSweepMs = 0L;
-
-    public AlertStormGuard(AlertNotifyProperties properties) {
-        this.properties = properties;
-    }
 
     /** 判定一次触发通知是否放行/抑制/发摘要，并推进内部窗口计数。 */
     public Decision decide(Long instanceId) {

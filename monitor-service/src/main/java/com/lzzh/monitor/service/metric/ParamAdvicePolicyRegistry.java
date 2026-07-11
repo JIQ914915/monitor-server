@@ -2,6 +2,8 @@ package com.lzzh.monitor.service.metric;
 
 import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.exception.BusinessException;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
@@ -13,7 +15,11 @@ import java.util.Map;
 class ParamAdvicePolicyRegistry {
     private final Map<DbType, ParamAdvicePolicy> policies = new EnumMap<>(DbType.class);
 
-    ParamAdvicePolicyRegistry(List<ParamAdvicePolicy> policyList) {
+    @Resource
+    private List<ParamAdvicePolicy> policyList;
+
+    @PostConstruct
+    void init() {
         for (ParamAdvicePolicy policy : policyList) {
             ParamAdvicePolicy previous = policies.put(policy.supportedType(), policy);
             if (previous != null) {

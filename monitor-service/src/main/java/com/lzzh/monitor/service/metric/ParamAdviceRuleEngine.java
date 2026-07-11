@@ -9,6 +9,7 @@ import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
 import com.lzzh.monitor.dao.ts.TsParamQueryDao;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -55,13 +56,11 @@ class ParamAdviceRuleEngine {
     private static final String M_OPENED_TABLES = "mysql.rate.Opened_tables";
     private static final String M_QPS = "mysql.qps";
 
-    private final TsParamQueryDao paramQueryDao;
-    private final TsMetricLatestDao metricLatestDao;
+    @Resource
+    private TsParamQueryDao paramQueryDao;
+    @Resource
+    private TsMetricLatestDao metricLatestDao;
 
-    ParamAdviceRuleEngine(TsParamQueryDao paramQueryDao, TsMetricLatestDao metricLatestDao) {
-        this.paramQueryDao = paramQueryDao;
-        this.metricLatestDao = metricLatestDao;
-    }
     List<ParamAdviceVo> adviseMySql(Long instanceId) {
         Map<String, Double> vars = paramQueryDao.latestNumericParams(instanceId, List.of(
                 P_BP_SIZE, P_MAX_CONN, P_TMP_TABLE, P_MAX_HEAP, P_TABLE_CACHE, P_LONG_QUERY, P_QCACHE_SIZE));

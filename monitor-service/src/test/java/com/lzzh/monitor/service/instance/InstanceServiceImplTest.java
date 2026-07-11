@@ -16,6 +16,7 @@ import com.lzzh.monitor.service.datascope.DataScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.Serializable;
 
@@ -40,17 +41,10 @@ class InstanceServiceImplTest {
         dbInstanceMapper = mock(DbInstanceMapper.class);
         dataScopeService = mock(DataScopeService.class);
         cleanupMapper = mock(InstanceDataCleanupMapper.class);
-        service = new InstanceServiceImpl(
-                dbInstanceMapper,
-                mock(DatabaseTypeMapper.class),
-                mock(DatabaseVersionMapper.class),
-                mock(PasswordCipher.class),
-                dataScopeService,
-                mock(AlertEventMapper.class),
-                mock(InstanceGroupMapper.class),
-                mock(SysUserMapper.class),
-                mock(HostMapper.class),
-                cleanupMapper);
+        service = new InstanceServiceImpl();
+        ReflectionTestUtils.setField(service, "mapper", dbInstanceMapper);
+        ReflectionTestUtils.setField(service, "dataScopeService", dataScopeService);
+        ReflectionTestUtils.setField(service, "instanceDataCleanupMapper", cleanupMapper);
         when(dataScopeService.currentScope()).thenReturn(DataScope.all());
     }
 

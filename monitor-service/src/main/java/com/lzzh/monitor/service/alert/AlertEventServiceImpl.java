@@ -32,6 +32,7 @@ import com.lzzh.monitor.dao.mapper.MonitorScenarioMapper;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -72,41 +73,28 @@ public class AlertEventServiceImpl implements AlertEventService {
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final int REMARK_MAX_LEN = 500;
 
-    private final AlertEventMapper alertEventMapper;
-    private final AlertNotifyRecordMapper notifyRecordMapper;
-    private final AlertEventOperateLogMapper operateLogMapper;
-    private final AlertEvaluateWindowMapper evaluateWindowMapper;
-    private final SysUserMapper sysUserMapper;
-    private final AlertRuleMapper alertRuleMapper;
-    private final DataScopeService dataScopeService;
-    private final MonitorScenarioMapper scenarioMapper;
-    private final KnowledgeArticleMapper knowledgeArticleMapper;
-    private final MetricDefinitionMapper metricDefinitionMapper;
-    private final AlertDrilldownProfileService drilldownProfileService;
-
-    public AlertEventServiceImpl(AlertEventMapper alertEventMapper,
-                                 AlertNotifyRecordMapper notifyRecordMapper,
-                                 AlertEventOperateLogMapper operateLogMapper,
-                                 AlertEvaluateWindowMapper evaluateWindowMapper,
-                                 SysUserMapper sysUserMapper,
-                                 AlertRuleMapper alertRuleMapper,
-                                 DataScopeService dataScopeService,
-                                 MonitorScenarioMapper scenarioMapper,
-                                 KnowledgeArticleMapper knowledgeArticleMapper,
-                                 MetricDefinitionMapper metricDefinitionMapper,
-                                 AlertDrilldownProfileService drilldownProfileService) {
-        this.alertEventMapper = alertEventMapper;
-        this.notifyRecordMapper = notifyRecordMapper;
-        this.operateLogMapper = operateLogMapper;
-        this.evaluateWindowMapper = evaluateWindowMapper;
-        this.sysUserMapper = sysUserMapper;
-        this.alertRuleMapper = alertRuleMapper;
-        this.dataScopeService = dataScopeService;
-        this.scenarioMapper = scenarioMapper;
-        this.knowledgeArticleMapper = knowledgeArticleMapper;
-        this.metricDefinitionMapper = metricDefinitionMapper;
-        this.drilldownProfileService = drilldownProfileService;
-    }
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertNotifyRecordMapper notifyRecordMapper;
+    @Resource
+    private AlertEventOperateLogMapper operateLogMapper;
+    @Resource
+    private AlertEvaluateWindowMapper evaluateWindowMapper;
+    @Resource
+    private SysUserMapper sysUserMapper;
+    @Resource
+    private AlertRuleMapper alertRuleMapper;
+    @Resource
+    private DataScopeService dataScopeService;
+    @Resource
+    private MonitorScenarioMapper scenarioMapper;
+    @Resource
+    private KnowledgeArticleMapper knowledgeArticleMapper;
+    @Resource
+    private MetricDefinitionMapper metricDefinitionMapper;
+    @Resource
+    private AlertDrilldownProfileService drilldownProfileService;
 
     @Override
     public PageResult<AlertEventVo> page(AlertEventPageRequest req) {

@@ -6,6 +6,7 @@ import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -18,7 +19,10 @@ class HealthScoreServiceImplTest {
         TsMetricLatestDao latestDao = mock(TsMetricLatestDao.class);
         DbInstanceMapper instanceMapper = mock(DbInstanceMapper.class);
         DatabaseTypeMapper databaseTypeMapper = mock(DatabaseTypeMapper.class);
-        HealthScoreServiceImpl service = new HealthScoreServiceImpl(latestDao, instanceMapper, databaseTypeMapper);
+        HealthScoreServiceImpl service = new HealthScoreServiceImpl();
+        ReflectionTestUtils.setField(service, "latestDao", latestDao);
+        ReflectionTestUtils.setField(service, "instanceMapper", instanceMapper);
+        ReflectionTestUtils.setField(service, "databaseTypeMapper", databaseTypeMapper);
 
         DbInstance instance = new DbInstance();
         instance.setId(1L);

@@ -19,6 +19,7 @@ import com.lzzh.monitor.dao.mapper.AlertRuleMapper;
 import com.lzzh.monitor.dao.mapper.LlmAnalysisMapper;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.metric.SlowSqlQueryService;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -84,35 +85,25 @@ public class LlmAnalysisServiceImpl implements LlmAnalysisService {
     /** SQL/文本中的单引号字面量参数化。 */
     private static final Pattern SQL_LITERAL = Pattern.compile("'[^']*'");
 
-    private final LlmAnalysisMapper analysisMapper;
-    private final LlmConfigServiceImpl configService;
-    private final AlertEventMapper alertEventMapper;
-    private final AlertRuleMapper alertRuleMapper;
-    private final DataScopeService dataScopeService;
-    private final PasswordCipher passwordCipher;
-    private final SlowSqlQueryService slowSqlQueryService;
-    private final com.lzzh.monitor.service.instance.InstanceService instanceService;
+    @Resource
+    private LlmAnalysisMapper analysisMapper;
+    @Resource
+    private LlmConfigServiceImpl configService;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertRuleMapper alertRuleMapper;
+    @Resource
+    private DataScopeService dataScopeService;
+    @Resource
+    private PasswordCipher passwordCipher;
+    @Resource
+    private SlowSqlQueryService slowSqlQueryService;
+    @Resource
+    private com.lzzh.monitor.service.instance.InstanceService instanceService;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
             .build();
-
-    public LlmAnalysisServiceImpl(LlmAnalysisMapper analysisMapper,
-                                  LlmConfigServiceImpl configService,
-                                  AlertEventMapper alertEventMapper,
-                                  AlertRuleMapper alertRuleMapper,
-                                  DataScopeService dataScopeService,
-                                  PasswordCipher passwordCipher,
-                                  SlowSqlQueryService slowSqlQueryService,
-                                  com.lzzh.monitor.service.instance.InstanceService instanceService) {
-        this.analysisMapper = analysisMapper;
-        this.configService = configService;
-        this.alertEventMapper = alertEventMapper;
-        this.alertRuleMapper = alertRuleMapper;
-        this.dataScopeService = dataScopeService;
-        this.passwordCipher = passwordCipher;
-        this.slowSqlQueryService = slowSqlQueryService;
-        this.instanceService = instanceService;
-    }
 
     /** 实例的数据库类型标签（MySQL / PostgreSQL），供提示词方言分派；查询失败返回 null 不阻断分析。 */
     private String resolveDbTypeLabel(Long instanceId) {

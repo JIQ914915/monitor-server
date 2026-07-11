@@ -28,6 +28,7 @@ import com.lzzh.monitor.dao.ts.TsSlowSqlSampleQueryDao;
 import com.lzzh.monitor.dao.ts.TsTempTableStatsDao;
 import com.lzzh.monitor.dao.ts.TsTopSqlQueryDao;
 import com.lzzh.monitor.service.instance.InstanceService;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -72,32 +73,22 @@ public class SlowSqlQueryServiceImpl implements SlowSqlQueryService {
     /** 未标记时的默认优化状态（字典 slow_sql_optimize_status）。 */
     private static final String OPTIMIZE_STATUS_DEFAULT = "unoptimized";
 
-    private final TsTopSqlQueryDao topSqlQueryDao;
-    private final TsSlowSqlSampleQueryDao slowSqlSampleQueryDao;
-    private final TsTempTableStatsDao tempTableStatsDao;
-    private final TsParamQueryDao paramQueryDao;
-    private final InstanceService instanceService;
-    private final SlowSqlOptimizeMarkMapper optimizeMarkMapper;
-    private final AlertEventMapper alertEventMapper;
-    private final AlertRuleMetricRefMapper alertRuleMetricRefMapper;
-
-    public SlowSqlQueryServiceImpl(TsTopSqlQueryDao topSqlQueryDao,
-                                   TsSlowSqlSampleQueryDao slowSqlSampleQueryDao,
-                                   TsTempTableStatsDao tempTableStatsDao,
-                                   TsParamQueryDao paramQueryDao,
-                                   InstanceService instanceService,
-                                   SlowSqlOptimizeMarkMapper optimizeMarkMapper,
-                                   AlertEventMapper alertEventMapper,
-                                   AlertRuleMetricRefMapper alertRuleMetricRefMapper) {
-        this.topSqlQueryDao = topSqlQueryDao;
-        this.slowSqlSampleQueryDao = slowSqlSampleQueryDao;
-        this.tempTableStatsDao = tempTableStatsDao;
-        this.paramQueryDao = paramQueryDao;
-        this.instanceService = instanceService;
-        this.optimizeMarkMapper = optimizeMarkMapper;
-        this.alertEventMapper = alertEventMapper;
-        this.alertRuleMetricRefMapper = alertRuleMetricRefMapper;
-    }
+    @Resource
+    private TsTopSqlQueryDao topSqlQueryDao;
+    @Resource
+    private TsSlowSqlSampleQueryDao slowSqlSampleQueryDao;
+    @Resource
+    private TsTempTableStatsDao tempTableStatsDao;
+    @Resource
+    private TsParamQueryDao paramQueryDao;
+    @Resource
+    private InstanceService instanceService;
+    @Resource
+    private SlowSqlOptimizeMarkMapper optimizeMarkMapper;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertRuleMetricRefMapper alertRuleMetricRefMapper;
 
     @Override
     public PageResult<SlowSqlDigestVo> pageDigest(SlowSqlDigestPageRequest request) {

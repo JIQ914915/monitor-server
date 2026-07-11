@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.job;
 
 import com.lzzh.monitor.service.report.ReportService;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -19,11 +20,8 @@ public class ReportGenerateJobHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ReportGenerateJobHandler.class);
 
-    private final ReportService reportService;
-
-    public ReportGenerateJobHandler(ReportService reportService) {
-        this.reportService = reportService;
-    }
+    @Resource
+    private ReportService reportService;
 
     @XxlJob("reportGenerateJobHandler")
     public void execute() {

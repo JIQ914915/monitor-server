@@ -8,6 +8,7 @@ import com.lzzh.monitor.common.result.PageResult;
 import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.entity.MysqlParamMeta;
 import com.lzzh.monitor.dao.ts.*;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -89,54 +90,38 @@ public class MetricQueryServiceImpl implements MetricQueryService {
             "pg.setting_text.log_min_duration_statement"
     );
 
-    private final TsCapacityGrowthDao capacityGrowthDao;
-    private final TsMetricTrendDao metricTrendDao;
-    private final TsMetricLatestDao metricLatestDao;
-    private final TsMetricObjectDao metricObjectDao;
-    private final TsLongConnDao longConnDao;
-    private final TsParamQueryDao paramQueryDao;
-    private final TsTableGrowthDao tableGrowthDao;
-    private final TsTempTableStatsDao tempTableStatsDao;
-    private final TsTextReader textReader;
-    private final ParamMetaService paramMetaService;
-    private final com.lzzh.monitor.dao.mapper.DbInstanceMapper dbInstanceMapper;
-    private final com.lzzh.monitor.dao.mapper.DatabaseTypeMapper databaseTypeMapper;
-    private final DbTypeResolver dbTypeResolver;
-    private final DatabaseMetricCatalogRegistry metricCatalogRegistry;
+    @Resource
+    private TsCapacityGrowthDao capacityGrowthDao;
+    @Resource
+    private TsMetricTrendDao metricTrendDao;
+    @Resource
+    private TsMetricLatestDao metricLatestDao;
+    @Resource
+    private TsMetricObjectDao metricObjectDao;
+    @Resource
+    private TsLongConnDao longConnDao;
+    @Resource
+    private TsParamQueryDao paramQueryDao;
+    @Resource
+    private TsTableGrowthDao tableGrowthDao;
+    @Resource
+    private TsTempTableStatsDao tempTableStatsDao;
+    @Resource
+    private TsTextReader textReader;
+    @Resource
+    private ParamMetaService paramMetaService;
+    @Resource
+    private com.lzzh.monitor.dao.mapper.DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private com.lzzh.monitor.dao.mapper.DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private DbTypeResolver dbTypeResolver;
+    @Resource
+    private DatabaseMetricCatalogRegistry metricCatalogRegistry;
 
     /** dbTypeId → DbType 缓存（database_type 行数极少且类型编码不变更）。 */
     private final java.util.concurrent.ConcurrentHashMap<Long, com.lzzh.monitor.common.enums.DbType> dbTypeCache =
             new java.util.concurrent.ConcurrentHashMap<>();
-
-    public MetricQueryServiceImpl(TsCapacityGrowthDao capacityGrowthDao,
-                                  TsMetricTrendDao metricTrendDao,
-                                  TsMetricLatestDao metricLatestDao,
-                                  TsMetricObjectDao metricObjectDao,
-                                  TsLongConnDao longConnDao,
-                                  TsParamQueryDao paramQueryDao,
-                                  TsTableGrowthDao tableGrowthDao,
-                                  TsTempTableStatsDao tempTableStatsDao,
-                                  TsTextReader textReader,
-                                  ParamMetaService paramMetaService,
-                                  com.lzzh.monitor.dao.mapper.DbInstanceMapper dbInstanceMapper,
-                                  com.lzzh.monitor.dao.mapper.DatabaseTypeMapper databaseTypeMapper,
-                                  DbTypeResolver dbTypeResolver,
-                                  DatabaseMetricCatalogRegistry metricCatalogRegistry) {
-        this.capacityGrowthDao = capacityGrowthDao;
-        this.metricTrendDao = metricTrendDao;
-        this.metricLatestDao = metricLatestDao;
-        this.metricObjectDao = metricObjectDao;
-        this.longConnDao = longConnDao;
-        this.paramQueryDao = paramQueryDao;
-        this.tableGrowthDao = tableGrowthDao;
-        this.tempTableStatsDao = tempTableStatsDao;
-        this.textReader = textReader;
-        this.paramMetaService = paramMetaService;
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.dbTypeResolver = dbTypeResolver;
-        this.metricCatalogRegistry = metricCatalogRegistry;
-    }
 
     private DatabaseMetricCatalog metricCatalog(Long instanceId) {
         DbInstance instance = dbInstanceMapper.selectById(instanceId);

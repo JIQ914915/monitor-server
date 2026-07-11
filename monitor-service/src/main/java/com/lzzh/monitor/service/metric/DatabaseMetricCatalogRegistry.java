@@ -2,6 +2,8 @@ package com.lzzh.monitor.service.metric;
 
 import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.exception.BusinessException;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
@@ -12,7 +14,11 @@ import java.util.Map;
 class DatabaseMetricCatalogRegistry {
     private final Map<DbType, DatabaseMetricCatalog> catalogs = new EnumMap<>(DbType.class);
 
-    DatabaseMetricCatalogRegistry(List<DatabaseMetricCatalog> catalogList) {
+    @Resource
+    private List<DatabaseMetricCatalog> catalogList;
+
+    @PostConstruct
+    void init() {
         for (DatabaseMetricCatalog catalog : catalogList) {
             DatabaseMetricCatalog old = catalogs.put(catalog.supportedType(), catalog);
             if (old != null) throw new IllegalStateException("重复的指标目录: " + catalog.supportedType());

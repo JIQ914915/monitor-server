@@ -52,7 +52,9 @@ import com.lzzh.monitor.dao.ts.TsSlowSqlSampleWriter;
 import com.lzzh.monitor.dao.ts.TsTextWriter;
 import com.lzzh.monitor.dao.ts.TsTopSqlWriter;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 
 /**
  * 采集执行器：取本分片实例 → 工厂解析采集器 → 采集 → 批量写时序（§14.1）。
@@ -63,20 +65,33 @@ public class CollectRunner {
 
     private static final Logger log = LoggerFactory.getLogger(CollectRunner.class);
 
-    private final CollectorFactory collectorFactory;
-    private final TsMetricWriter tsMetricWriter;
-    private final TsTextWriter tsTextWriter;
-    private final TsTopSqlWriter tsTopSqlWriter;
-    private final TsCapacityObjectWriter tsCapacityObjectWriter;
-    private final TsLongConnWriter tsLongConnWriter;
-    private final TsSlowSqlSampleWriter tsSlowSqlSampleWriter;
-    private final CollectLogMapper collectLogMapper;
-    private final DbInstanceMapper dbInstanceMapper;
-    private final ConnectionFailureAlertService connectionFailureAlertService;
-    private final TsParamQueryDao paramQueryDao;
-    private final ExecutorService pool;
-    private final int poolSize;
-    private final CollectProperties props;
+    @Resource
+    private CollectorFactory collectorFactory;
+    @Resource
+    private TsMetricWriter tsMetricWriter;
+    @Resource
+    private TsTextWriter tsTextWriter;
+    @Resource
+    private TsTopSqlWriter tsTopSqlWriter;
+    @Resource
+    private TsCapacityObjectWriter tsCapacityObjectWriter;
+    @Resource
+    private TsLongConnWriter tsLongConnWriter;
+    @Resource
+    private TsSlowSqlSampleWriter tsSlowSqlSampleWriter;
+    @Resource
+    private CollectLogMapper collectLogMapper;
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private ConnectionFailureAlertService connectionFailureAlertService;
+    @Resource
+    private TsParamQueryDao paramQueryDao;
+    @Resource
+    private CollectProperties props;
+
+    private ExecutorService pool;
+    private int poolSize;
 
     /** 节点内连续失败计数（分钟级连接失败次数）：达阈值后将实例标为 abnormal。 */
     private final ConcurrentHashMap<Long, AtomicInteger> consecutiveFailures = new ConcurrentHashMap<>();
@@ -90,34 +105,14 @@ public class CollectRunner {
      */
     private final ConcurrentHashMap<CollectFrequency, ReentrantLock> roundLocks = new ConcurrentHashMap<>();
 
-    public CollectRunner(CollectorFactory collectorFactory, TsMetricWriter tsMetricWriter,
-                         TsTextWriter tsTextWriter, TsTopSqlWriter tsTopSqlWriter,
-                         TsCapacityObjectWriter tsCapacityObjectWriter,
-                         TsLongConnWriter tsLongConnWriter,
-                         TsSlowSqlSampleWriter tsSlowSqlSampleWriter,
-                         CollectLogMapper collectLogMapper,
-                         DbInstanceMapper dbInstanceMapper,
-                         ConnectionFailureAlertService connectionFailureAlertService,
-                         TsParamQueryDao paramQueryDao,
-                         CollectProperties props) {
-        this.collectorFactory = collectorFactory;
-        this.tsMetricWriter = tsMetricWriter;
-        this.tsTextWriter = tsTextWriter;
-        this.tsTopSqlWriter = tsTopSqlWriter;
-        this.tsCapacityObjectWriter = tsCapacityObjectWriter;
-        this.tsLongConnWriter = tsLongConnWriter;
-        this.tsSlowSqlSampleWriter = tsSlowSqlSampleWriter;
-        this.collectLogMapper = collectLogMapper;
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.connectionFailureAlertService = connectionFailureAlertService;
-        this.paramQueryDao = paramQueryDao;
+    @PostConstruct
+    void init() {
         this.poolSize = Math.max(1, props.getPoolSize());
         // 无界队列 + 固定线程数：队列永不满，拒绝策略仅在池已 shutdown 后提交时触发，
         // 用 AbortPolicy 让这种编程错误显式抛出而非静默在调用线程执行
         this.pool = new ThreadPoolExecutor(poolSize, poolSize, 60L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(), namedThreadFactory("collect-worker-"),
                 new ThreadPoolExecutor.AbortPolicy());
-        this.props = props;
     }
 
     public void run(List<CollectTargetVo> instances, CollectFrequency frequency) {

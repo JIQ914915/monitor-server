@@ -6,6 +6,7 @@ import com.lzzh.monitor.collector.spi.TargetConnectionCache;
 import com.lzzh.monitor.dao.entity.AlertEvent;
 import com.lzzh.monitor.dao.entity.AlertRule;
 import com.lzzh.monitor.service.alert.SqlSafetyValidator;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,14 +37,10 @@ public class AlertCustomSqlEvaluator {
     private static final int CUSTOM_SQL_QUERY_TIMEOUT_SECONDS = 10;
     private static final int CUSTOM_SQL_MAX_ROWS = 1000;
 
-    private final TargetConnectionCache connectionCache;
-    private final AlertEventLifecycleService lifecycleService;
-
-    public AlertCustomSqlEvaluator(TargetConnectionCache connectionCache,
-                                   AlertEventLifecycleService lifecycleService) {
-        this.connectionCache = connectionCache;
-        this.lifecycleService = lifecycleService;
-    }
+    @Resource
+    private TargetConnectionCache connectionCache;
+    @Resource
+    private AlertEventLifecycleService lifecycleService;
 
     /** 规则条件是否为自定义 SQL 模式。 */
     public static boolean hasCustomSql(AlertRule rule) {

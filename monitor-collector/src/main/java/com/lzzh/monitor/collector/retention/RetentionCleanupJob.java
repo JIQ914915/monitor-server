@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzzh.monitor.dao.entity.RetentionConfig;
 import com.lzzh.monitor.dao.mapper.RetentionConfigMapper;
 import com.lzzh.monitor.dao.retention.RetentionCleanupDao;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,13 +25,10 @@ public class RetentionCleanupJob {
 
     private static final Logger log = LoggerFactory.getLogger(RetentionCleanupJob.class);
 
-    private final RetentionConfigMapper retentionMapper;
-    private final RetentionCleanupDao retentionCleanupDao;
-
-    public RetentionCleanupJob(RetentionConfigMapper retentionMapper, RetentionCleanupDao retentionCleanupDao) {
-        this.retentionMapper = retentionMapper;
-        this.retentionCleanupDao = retentionCleanupDao;
-    }
+    @Resource
+    private RetentionConfigMapper retentionMapper;
+    @Resource
+    private RetentionCleanupDao retentionCleanupDao;
 
     /** 普通表保留清理（建议 cron：{@code 0 30 3 * * ?}，每日 03:30）。 */
     @XxlJob("retentionCleanupJobHandler")

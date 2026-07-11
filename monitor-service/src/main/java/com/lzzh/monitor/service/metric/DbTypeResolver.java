@@ -5,6 +5,7 @@ import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -13,12 +14,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /** 将实例关联的 database_type 统一解析为受支持的领域类型，不允许静默回退。 */
 @Component
 class DbTypeResolver {
-    private final DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
     private final Map<Long, DbType> cache = new ConcurrentHashMap<>();
-
-    DbTypeResolver(DatabaseTypeMapper databaseTypeMapper) {
-        this.databaseTypeMapper = databaseTypeMapper;
-    }
 
     DbType resolve(DbInstance instance) {
         if (instance.getDbTypeId() == null) {

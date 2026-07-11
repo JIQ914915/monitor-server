@@ -7,6 +7,7 @@ import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -125,24 +126,18 @@ public class HealthScoreServiceImpl implements HealthScoreService {
     private static final int W_CAPACITY     = 15;
     private static final int W_SECURITY     = 10;
 
-    private final TsMetricLatestDao latestDao;
-    private final DbInstanceMapper instanceMapper;
-    private final DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private TsMetricLatestDao latestDao;
+    @Resource
+    private DbInstanceMapper instanceMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
 
     /** dbTypeId → DbType 缓存（database_type 行数极少且不变更类型编码）。 */
     private final Map<Long, DbType> dbTypeCache = new ConcurrentHashMap<>();
-    private final HealthScorePolicyRegistry policyRegistry;
-
-    public HealthScoreServiceImpl(TsMetricLatestDao latestDao,
-                                  DbInstanceMapper instanceMapper,
-                                  DatabaseTypeMapper databaseTypeMapper) {
-        this.latestDao = latestDao;
-        this.instanceMapper = instanceMapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.policyRegistry = new HealthScorePolicyRegistry(List.of(
-                new MySqlHealthScorePolicy(),
-                new PostgreSqlHealthScorePolicy()));
-    }
+    private final HealthScorePolicyRegistry policyRegistry = new HealthScorePolicyRegistry(List.of(
+            new MySqlHealthScorePolicy(),
+            new PostgreSqlHealthScorePolicy()));
 
     @Override
     public HealthScoreVo calculate(Long instanceId) {

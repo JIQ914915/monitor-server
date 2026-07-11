@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
@@ -76,9 +77,18 @@ class AlertEventServiceImplTest {
         metricDefinitionMapper = mock(MetricDefinitionMapper.class);
         drilldownProfileService = mock(AlertDrilldownProfileService.class);
         when(dataScopeService.currentScope()).thenReturn(DataScope.all());
-        service = new AlertEventServiceImpl(alertEventMapper, notifyRecordMapper, operateLogMapper,
-                evaluateWindowMapper, sysUserMapper, alertRuleMapper, dataScopeService,
-                scenarioMapper, knowledgeArticleMapper, metricDefinitionMapper, drilldownProfileService);
+        service = new AlertEventServiceImpl();
+        ReflectionTestUtils.setField(service, "alertEventMapper", alertEventMapper);
+        ReflectionTestUtils.setField(service, "notifyRecordMapper", notifyRecordMapper);
+        ReflectionTestUtils.setField(service, "operateLogMapper", operateLogMapper);
+        ReflectionTestUtils.setField(service, "evaluateWindowMapper", evaluateWindowMapper);
+        ReflectionTestUtils.setField(service, "sysUserMapper", sysUserMapper);
+        ReflectionTestUtils.setField(service, "alertRuleMapper", alertRuleMapper);
+        ReflectionTestUtils.setField(service, "dataScopeService", dataScopeService);
+        ReflectionTestUtils.setField(service, "scenarioMapper", scenarioMapper);
+        ReflectionTestUtils.setField(service, "knowledgeArticleMapper", knowledgeArticleMapper);
+        ReflectionTestUtils.setField(service, "metricDefinitionMapper", metricDefinitionMapper);
+        ReflectionTestUtils.setField(service, "drilldownProfileService", drilldownProfileService);
     }
 
     private AlertEvent event(long id, String status) {

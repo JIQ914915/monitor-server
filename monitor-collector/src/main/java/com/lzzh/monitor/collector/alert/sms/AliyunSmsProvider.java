@@ -4,6 +4,7 @@ import cn.hutool.json.JSONUtil;
 import com.aliyun.dysmsapi20170525.models.SendSmsRequest;
 import com.aliyun.teaopenapi.models.Config;
 import com.lzzh.monitor.collector.config.AlertNotifyProperties;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -13,11 +14,8 @@ import java.util.Map;
 @Component
 public class AliyunSmsProvider implements SmsProvider {
 
-    private final AlertNotifyProperties properties;
-
-    public AliyunSmsProvider(AlertNotifyProperties properties) {
-        this.properties = properties;
-    }
+    @Resource
+    private AlertNotifyProperties properties;
 
     @Override
     public String code() {

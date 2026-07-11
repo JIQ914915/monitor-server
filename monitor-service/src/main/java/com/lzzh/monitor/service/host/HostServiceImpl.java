@@ -16,6 +16,7 @@ import com.lzzh.monitor.dao.entity.Host;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.HostMapper;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -39,17 +40,13 @@ public class HostServiceImpl implements HostService {
     private static final Pattern BUILD_INFO_VERSION =
             Pattern.compile("(node_exporter|windows_exporter)_build_info\\{[^}]*version=\"([^\"]+)\"");
 
-    private final HostMapper hostMapper;
-    private final DbInstanceMapper dbInstanceMapper;
-    private final HttpClient httpClient;
-
-    public HostServiceImpl(HostMapper hostMapper, DbInstanceMapper dbInstanceMapper) {
-        this.hostMapper = hostMapper;
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
-    }
+    @Resource
+    private HostMapper hostMapper;
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
 
     // ── 查询 ──────────────────────────────────────────────────────────────────
 

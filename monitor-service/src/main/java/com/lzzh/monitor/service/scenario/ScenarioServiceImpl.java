@@ -27,6 +27,7 @@ import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator.SignalStatus;
 import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator.TriState;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -55,38 +56,26 @@ public class ScenarioServiceImpl implements ScenarioService {
     /** 场景停用联动关闭事件后的短期抑制窗口（小时），与规则停用策略一致。 */
     private static final int SCENARIO_DISABLE_SUPPRESS_HOURS = 2;
 
-    private final MonitorScenarioMapper scenarioMapper;
-    private final ScenarioInstanceConfigMapper configMapper;
-    private final DbInstanceMapper dbInstanceMapper;
-    private final AlertEventMapper alertEventMapper;
-    private final AlertEvaluateWindowMapper evaluateWindowMapper;
-    private final AlertEventOperateLogMapper operateLogMapper;
-    private final KnowledgeArticleMapper knowledgeArticleMapper;
-    private final SysUserMapper sysUserMapper;
-    private final ScenarioEvaluationService evaluationService;
-    private final DataScopeService dataScopeService;
-
-    public ScenarioServiceImpl(MonitorScenarioMapper scenarioMapper,
-                               ScenarioInstanceConfigMapper configMapper,
-                               DbInstanceMapper dbInstanceMapper,
-                               AlertEventMapper alertEventMapper,
-                               AlertEvaluateWindowMapper evaluateWindowMapper,
-                               AlertEventOperateLogMapper operateLogMapper,
-                               KnowledgeArticleMapper knowledgeArticleMapper,
-                               SysUserMapper sysUserMapper,
-                               ScenarioEvaluationService evaluationService,
-                               DataScopeService dataScopeService) {
-        this.scenarioMapper = scenarioMapper;
-        this.configMapper = configMapper;
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.alertEventMapper = alertEventMapper;
-        this.evaluateWindowMapper = evaluateWindowMapper;
-        this.operateLogMapper = operateLogMapper;
-        this.knowledgeArticleMapper = knowledgeArticleMapper;
-        this.sysUserMapper = sysUserMapper;
-        this.evaluationService = evaluationService;
-        this.dataScopeService = dataScopeService;
-    }
+    @Resource
+    private MonitorScenarioMapper scenarioMapper;
+    @Resource
+    private ScenarioInstanceConfigMapper configMapper;
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertEvaluateWindowMapper evaluateWindowMapper;
+    @Resource
+    private AlertEventOperateLogMapper operateLogMapper;
+    @Resource
+    private KnowledgeArticleMapper knowledgeArticleMapper;
+    @Resource
+    private SysUserMapper sysUserMapper;
+    @Resource
+    private ScenarioEvaluationService evaluationService;
+    @Resource
+    private DataScopeService dataScopeService;
 
     @Override
     public ScenarioPageVo page(ScenarioPageRequest req) {

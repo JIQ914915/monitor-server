@@ -6,6 +6,7 @@ import com.lzzh.monitor.dao.entity.SysUser;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.InstanceGroupMapper;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -18,17 +19,12 @@ import java.util.Set;
 @Service
 public class AlertContactResolver {
 
-    private final DbInstanceMapper dbInstanceMapper;
-    private final InstanceGroupMapper instanceGroupMapper;
-    private final SysUserMapper sysUserMapper;
-
-    public AlertContactResolver(DbInstanceMapper dbInstanceMapper,
-                                InstanceGroupMapper instanceGroupMapper,
-                                SysUserMapper sysUserMapper) {
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.instanceGroupMapper = instanceGroupMapper;
-        this.sysUserMapper = sysUserMapper;
-    }
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private InstanceGroupMapper instanceGroupMapper;
+    @Resource
+    private SysUserMapper sysUserMapper;
 
     public ContactTargets resolve(Long instanceId) {
         if (instanceId == null) {

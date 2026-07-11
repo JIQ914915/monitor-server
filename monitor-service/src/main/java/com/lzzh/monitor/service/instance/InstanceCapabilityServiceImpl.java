@@ -11,6 +11,7 @@ import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -46,23 +47,16 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
     /** 审计插件启用状态指标（AuditPluginItem，天级）。 */
     private static final String AUDIT_PLUGIN_ACTIVE_METRIC = "mysql.security.audit_plugin_active";
 
-    private final DbInstanceMapper instanceMapper;
-    private final DatabaseTypeMapper databaseTypeMapper;
-    private final DatabaseVersionMapper versionMapper;
-    private final CollectLogMapper collectLogMapper;
-    private final TsMetricLatestDao metricLatestDao;
-
-    public InstanceCapabilityServiceImpl(DbInstanceMapper instanceMapper,
-                                         DatabaseTypeMapper databaseTypeMapper,
-                                         DatabaseVersionMapper versionMapper,
-                                         CollectLogMapper collectLogMapper,
-                                         TsMetricLatestDao metricLatestDao) {
-        this.instanceMapper = instanceMapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.versionMapper = versionMapper;
-        this.collectLogMapper = collectLogMapper;
-        this.metricLatestDao = metricLatestDao;
-    }
+    @Resource
+    private DbInstanceMapper instanceMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private DatabaseVersionMapper versionMapper;
+    @Resource
+    private CollectLogMapper collectLogMapper;
+    @Resource
+    private TsMetricLatestDao metricLatestDao;
 
     @Override
     public List<InstanceCapabilityVo> detect(Long instanceId) {

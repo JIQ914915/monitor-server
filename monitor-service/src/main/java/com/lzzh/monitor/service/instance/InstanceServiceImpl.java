@@ -17,6 +17,7 @@ import com.lzzh.monitor.service.convert.InstanceConverter;
 import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -34,38 +35,26 @@ public class InstanceServiceImpl implements InstanceService {
 
     private static final Logger log = LoggerFactory.getLogger(InstanceServiceImpl.class);
 
-    private final DbInstanceMapper mapper;
-    private final DatabaseTypeMapper databaseTypeMapper;
-    private final DatabaseVersionMapper databaseVersionMapper;
-    private final PasswordCipher passwordCipher;
-    private final DataScopeService dataScopeService;
-    private final AlertEventMapper alertEventMapper;
-    private final InstanceGroupMapper instanceGroupMapper;
-    private final SysUserMapper sysUserMapper;
-    private final HostMapper hostMapper;
-    private final InstanceDataCleanupMapper instanceDataCleanupMapper;
-
-    public InstanceServiceImpl(DbInstanceMapper mapper,
-                               DatabaseTypeMapper databaseTypeMapper,
-                               DatabaseVersionMapper databaseVersionMapper,
-                               PasswordCipher passwordCipher,
-                               DataScopeService dataScopeService,
-                               AlertEventMapper alertEventMapper,
-                               InstanceGroupMapper instanceGroupMapper,
-                               SysUserMapper sysUserMapper,
-                               HostMapper hostMapper,
-                               InstanceDataCleanupMapper instanceDataCleanupMapper) {
-        this.mapper = mapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.databaseVersionMapper = databaseVersionMapper;
-        this.passwordCipher = passwordCipher;
-        this.dataScopeService = dataScopeService;
-        this.alertEventMapper = alertEventMapper;
-        this.instanceGroupMapper = instanceGroupMapper;
-        this.sysUserMapper = sysUserMapper;
-        this.hostMapper = hostMapper;
-        this.instanceDataCleanupMapper = instanceDataCleanupMapper;
-    }
+    @Resource
+    private DbInstanceMapper mapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private DatabaseVersionMapper databaseVersionMapper;
+    @Resource
+    private PasswordCipher passwordCipher;
+    @Resource
+    private DataScopeService dataScopeService;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private InstanceGroupMapper instanceGroupMapper;
+    @Resource
+    private SysUserMapper sysUserMapper;
+    @Resource
+    private HostMapper hostMapper;
+    @Resource
+    private InstanceDataCleanupMapper instanceDataCleanupMapper;
 
     /** 主机查找表（hostId → Host），供列表/详情解析 hostName / hostOsType。 */
     private Map<Long, Host> loadHostMap(List<DbInstance> instances) {

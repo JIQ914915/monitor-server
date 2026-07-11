@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.job;
 
 import com.lzzh.monitor.collector.alert.AlertNotificationService;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -13,11 +14,8 @@ public class AlertNotifyRetryJobHandler {
 
     private static final Logger log = LoggerFactory.getLogger(AlertNotifyRetryJobHandler.class);
 
-    private final AlertNotificationService alertNotificationService;
-
-    public AlertNotifyRetryJobHandler(AlertNotificationService alertNotificationService) {
-        this.alertNotificationService = alertNotificationService;
-    }
+    @Resource
+    private AlertNotificationService alertNotificationService;
 
     @XxlJob("alertNotifyRetryJobHandler")
     public void retry() {

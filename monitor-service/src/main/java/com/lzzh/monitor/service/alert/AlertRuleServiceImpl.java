@@ -33,6 +33,7 @@ import com.lzzh.monitor.dao.entity.MetricDefinition;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import com.lzzh.monitor.service.datascope.DataScopeService;
+import jakarta.annotation.Resource;
 
 import java.util.function.Function;
 
@@ -75,44 +76,30 @@ public class AlertRuleServiceImpl implements AlertRuleService {
     /** 规则停用/删除联动关闭事件后的短期抑制窗口（小时），与人工关闭的抑制策略保持一致。 */
     private static final int RULE_DISABLE_SUPPRESS_HOURS = 2;
 
-    private final AlertRuleMapper alertRuleMapper;
-    private final AlertEventMapper alertEventMapper;
-    private final AlertRuleMetricRefMapper metricRefMapper;
-    private final AlertRuleInstanceConfigMapper instanceConfigMapper;
-    private final AlertEventOperateLogMapper operateLogMapper;
-    private final AlertEvaluateWindowMapper evaluateWindowMapper;
-    private final DbInstanceMapper dbInstanceMapper;
-    private final DatabaseTypeMapper databaseTypeMapper;
-    private final DatabaseVersionMapper databaseVersionMapper;
-    private final MetricDefinitionMapper metricDefinitionMapper;
-    private final SysUserMapper sysUserMapper;
-    private final DataScopeService dataScopeService;
-
-    public AlertRuleServiceImpl(AlertRuleMapper alertRuleMapper,
-                                AlertEventMapper alertEventMapper,
-                                AlertRuleMetricRefMapper metricRefMapper,
-                                AlertRuleInstanceConfigMapper instanceConfigMapper,
-                                AlertEventOperateLogMapper operateLogMapper,
-                                AlertEvaluateWindowMapper evaluateWindowMapper,
-                                DbInstanceMapper dbInstanceMapper,
-                                DatabaseTypeMapper databaseTypeMapper,
-                                DatabaseVersionMapper databaseVersionMapper,
-                                MetricDefinitionMapper metricDefinitionMapper,
-                                SysUserMapper sysUserMapper,
-                                DataScopeService dataScopeService) {
-        this.alertRuleMapper = alertRuleMapper;
-        this.alertEventMapper = alertEventMapper;
-        this.metricRefMapper = metricRefMapper;
-        this.instanceConfigMapper = instanceConfigMapper;
-        this.operateLogMapper = operateLogMapper;
-        this.evaluateWindowMapper = evaluateWindowMapper;
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.databaseVersionMapper = databaseVersionMapper;
-        this.metricDefinitionMapper = metricDefinitionMapper;
-        this.sysUserMapper = sysUserMapper;
-        this.dataScopeService = dataScopeService;
-    }
+    @Resource
+    private AlertRuleMapper alertRuleMapper;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertRuleMetricRefMapper metricRefMapper;
+    @Resource
+    private AlertRuleInstanceConfigMapper instanceConfigMapper;
+    @Resource
+    private AlertEventOperateLogMapper operateLogMapper;
+    @Resource
+    private AlertEvaluateWindowMapper evaluateWindowMapper;
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private DatabaseVersionMapper databaseVersionMapper;
+    @Resource
+    private MetricDefinitionMapper metricDefinitionMapper;
+    @Resource
+    private SysUserMapper sysUserMapper;
+    @Resource
+    private DataScopeService dataScopeService;
 
     /** 校验实例是否在当前用户数据范围内，越权配置统一拒绝（403 语义）。 */
     private void checkInstanceAccessible(Long instanceId) {

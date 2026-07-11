@@ -6,6 +6,7 @@ import com.lzzh.monitor.dao.entity.AlertEvent;
 import com.lzzh.monitor.dao.mapper.AlertEventMapper;
 import com.lzzh.monitor.service.instance.InstanceService;
 import jakarta.annotation.PreDestroy;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -63,8 +64,10 @@ public class BlockingChainSnapshotService {
     private static final int MAX_ROWS = 50;
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final AlertEventMapper alertEventMapper;
-    private final InstanceService instanceService;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private InstanceService instanceService;
 
     /**
      * 单线程 + 有界队列：快照抓取是低频动作（仅锁相关事件建单时触发），
@@ -79,11 +82,6 @@ public class BlockingChainSnapshotService {
                 return t;
             },
             new ThreadPoolExecutor.DiscardPolicy());
-
-    public BlockingChainSnapshotService(AlertEventMapper alertEventMapper, InstanceService instanceService) {
-        this.alertEventMapper = alertEventMapper;
-        this.instanceService = instanceService;
-    }
 
     @PreDestroy
     void shutdown() {

@@ -34,6 +34,7 @@ import com.lzzh.monitor.api.response.CollectTargetVo;
 import com.lzzh.monitor.service.instance.InstanceService;
 import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator;
 import com.lzzh.monitor.service.scenario.ScenarioEvaluationService;
+import jakarta.annotation.Resource;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -72,21 +73,36 @@ public class AlertEvaluateJobHandler {
     /** 查询最新指标值的时间窗口（分钟），防止采集延迟导致误判。 */
     private static final int METRIC_WINDOW_MINUTES = 5;
 
-    private final AlertRuleMapper alertRuleMapper;
-    private final AlertEventMapper alertEventMapper;
-    private final AlertEvaluateWindowMapper alertEvaluateWindowMapper;
-    private final AlertRuleInstanceConfigMapper instanceConfigMapper;
-    private final DbInstanceMapper dbInstanceMapper;
-    private final MetricDefinitionMapper metricDefinitionMapper;
-    private final MetricValueQueryDao metricValueQueryDao;
-    private final AlertEventLifecycleService lifecycleService;
-    private final AlertCustomSqlEvaluator customSqlEvaluator;
-    private final InstanceService instanceService;
-    private final AlertEventOperateLogMapper operateLogMapper;
-    private final MonitorScenarioMapper scenarioMapper;
-    private final ScenarioInstanceConfigMapper scenarioConfigMapper;
-    private final ScenarioEvaluationService scenarioEvaluationService;
-    private final DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private AlertRuleMapper alertRuleMapper;
+    @Resource
+    private AlertEventMapper alertEventMapper;
+    @Resource
+    private AlertEvaluateWindowMapper alertEvaluateWindowMapper;
+    @Resource
+    private AlertRuleInstanceConfigMapper instanceConfigMapper;
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private MetricDefinitionMapper metricDefinitionMapper;
+    @Resource
+    private MetricValueQueryDao metricValueQueryDao;
+    @Resource
+    private AlertEventLifecycleService lifecycleService;
+    @Resource
+    private AlertCustomSqlEvaluator customSqlEvaluator;
+    @Resource
+    private InstanceService instanceService;
+    @Resource
+    private AlertEventOperateLogMapper operateLogMapper;
+    @Resource
+    private MonitorScenarioMapper scenarioMapper;
+    @Resource
+    private ScenarioInstanceConfigMapper scenarioConfigMapper;
+    @Resource
+    private ScenarioEvaluationService scenarioEvaluationService;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
 
     /**
      * HOST 内置类型的 database_type.id 缓存（内置数据，进程生命周期内不变）。
@@ -108,38 +124,6 @@ public class AlertEvaluateJobHandler {
      */
     @org.springframework.beans.factory.annotation.Value("${alert.evaluate.alert-on-metric-missing:false}")
     private boolean alertOnMetricMissing;
-
-    public AlertEvaluateJobHandler(AlertRuleMapper alertRuleMapper,
-                                   AlertEventMapper alertEventMapper,
-                                   AlertEvaluateWindowMapper alertEvaluateWindowMapper,
-                                   AlertRuleInstanceConfigMapper instanceConfigMapper,
-                                   DbInstanceMapper dbInstanceMapper,
-                                   MetricDefinitionMapper metricDefinitionMapper,
-                                   MetricValueQueryDao metricValueQueryDao,
-                                   AlertEventLifecycleService lifecycleService,
-                                   AlertCustomSqlEvaluator customSqlEvaluator,
-                                   InstanceService instanceService,
-                                   AlertEventOperateLogMapper operateLogMapper,
-                                   MonitorScenarioMapper scenarioMapper,
-                                   ScenarioInstanceConfigMapper scenarioConfigMapper,
-                                   ScenarioEvaluationService scenarioEvaluationService,
-                                   DatabaseTypeMapper databaseTypeMapper) {
-        this.alertRuleMapper = alertRuleMapper;
-        this.alertEventMapper = alertEventMapper;
-        this.alertEvaluateWindowMapper = alertEvaluateWindowMapper;
-        this.instanceConfigMapper = instanceConfigMapper;
-        this.dbInstanceMapper = dbInstanceMapper;
-        this.metricDefinitionMapper = metricDefinitionMapper;
-        this.metricValueQueryDao = metricValueQueryDao;
-        this.lifecycleService = lifecycleService;
-        this.customSqlEvaluator = customSqlEvaluator;
-        this.instanceService = instanceService;
-        this.operateLogMapper = operateLogMapper;
-        this.scenarioMapper = scenarioMapper;
-        this.scenarioConfigMapper = scenarioConfigMapper;
-        this.scenarioEvaluationService = scenarioEvaluationService;
-        this.databaseTypeMapper = databaseTypeMapper;
-    }
 
     @XxlJob("alertEvaluateJobHandler")
     public void evaluate() {
