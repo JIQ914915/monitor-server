@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MapperXmlConventionTest {
 
-    private static final Pattern SQL_ANNOTATION = Pattern.compile("@(Select|Insert|Update|Delete)\\s*\\(");
+    private static final Pattern SQL_ANNOTATION = Pattern.compile("@(?:org\\.apache\\.ibatis\\.annotations\\.)?(Select|Insert|Update|Delete)\\s*\\(");
     private static final Pattern STRING_LITERAL = Pattern.compile("\\\"(?:\\\\.|[^\\\"\\\\])*\\\"");
     private static final Pattern METHOD_NAME = Pattern.compile("\\b([A-Za-z_$][\\w$]*)\\s*\\(");
     private static final Pattern DYNAMIC_TAG = Pattern.compile("(?i)<\\s*/?\\s*(script|if|choose|when|otherwise|foreach|where|set|trim|bind)\\b");
@@ -92,11 +92,16 @@ class MapperXmlConventionTest {
                     String value = "@Select(\\\"THIS IS AN ORDINARY STRING THAT MUST NEVER BE TREATED AS AN ANNOTATION ...................................\\\")";
                     @Select("SELECT this_is_a_real_annotation_with_a_body_that_is_deliberately_long_enough_to_exceed_the_one_hundred_and_twenty_character_limit FROM fixture")
                     String realLongQuery();
+                    @org.apache.ibatis.annotations.Select("SELECT this_fully_qualified_annotation_is_also_deliberately_long_enough_to_exceed_the_one_hundred_and_twenty_character_limit FROM fixture")
+                    String fullyQualifiedLongQuery();
                 }
                 """);
         List<String> violations = new ArrayList<>();
         inspectSqlAnnotations(source, violations);
-        assertTrue(violations.size() == 1 && violations.getFirst().contains("#realLongQuery"), violations::toString);
+        assertTrue(violations.size() == 2
+                && violations.stream().anyMatch(value -> value.contains("#realLongQuery"))
+                && violations.stream().anyMatch(value -> value.contains("#fullyQualifiedLongQuery")),
+                violations::toString);
     }
 
     @Test
