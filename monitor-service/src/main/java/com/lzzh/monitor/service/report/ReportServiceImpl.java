@@ -791,8 +791,9 @@ public class ReportServiceImpl implements ReportService {
                     row.put("level", levelLabels.getOrDefault(str(r.get("rule_level")), str(r.get("rule_level"))));
                     row.put("count", (long) num(r.get("cnt")));
                     String metricCode = str(r.get("metric_code"));
+                    String dbType = str(r.get("db_type"));
                     DrilldownProfileVo profile = StringUtils.hasText(metricCode)
-                            ? drilldownProfileService.match(metricCode) : null;
+                            ? drilldownProfileService.match(metricCode, dbType) : null;
                     row.put("category", profile == null ? "-" : profile.getProfileLabel());
                     return row;
                 }).toList();
@@ -1077,7 +1078,9 @@ public class ReportServiceImpl implements ReportService {
                 : null;
         String unit = metricDef == null ? "" : unitSymbol(metricDef.getUnit());
         String metricLabel = metricDef != null ? metricDef.getMetricName() : str(metricCode);
-        DrilldownProfileVo profile = drilldownProfileService.match(scenario ? event.getScenarioCode() : metricCode);
+        DrilldownProfileVo profile = drilldownProfileService.match(
+                scenario ? event.getScenarioCode() : metricCode,
+                resolveDbTypeCode(event.getInstanceId()));
 
         OffsetDateTime now = OffsetDateTime.now();
         OffsetDateTime endRef = event.getRecoveryTime() != null ? event.getRecoveryTime() : now;
@@ -1260,6 +1263,13 @@ public class ReportServiceImpl implements ReportService {
     private static boolean isConnectionFailureEvent(AlertEvent e) {
         return e.getRuleId() == null && StringUtils.hasText(e.getDedupKey())
                 && e.getDedupKey().startsWith(Constants.SYSTEM_RULE_CONNECTION_FAILURE + ":");
+    }
+
+    private String resolveDbTypeCode(Long instanceId) {
+        DbInstance instance = instanceId == null ? null : instanceMapper.selectById(instanceId);
+        DatabaseType type = instance == null || instance.getDbTypeId() == null
+                ? null : databaseTypeMapper.selectById(instance.getDbTypeId());
+        return type == null ? null : type.getCode();
     }
 
     private static String operateLabel(String t) {

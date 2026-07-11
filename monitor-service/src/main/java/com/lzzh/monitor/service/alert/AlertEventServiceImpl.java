@@ -18,11 +18,15 @@ import com.lzzh.monitor.dao.entity.AlertEventOperateLog;
 import com.lzzh.monitor.dao.entity.AlertNotifyRecord;
 import com.lzzh.monitor.dao.entity.SysUser;
 import com.lzzh.monitor.dao.entity.AlertRule;
+import com.lzzh.monitor.dao.entity.DatabaseType;
+import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.entity.KnowledgeArticle;
 import com.lzzh.monitor.dao.entity.MetricDefinition;
 import com.lzzh.monitor.dao.entity.MonitorScenario;
 import com.lzzh.monitor.dao.mapper.AlertEvaluateWindowMapper;
 import com.lzzh.monitor.dao.mapper.AlertRuleMapper;
+import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
+import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.AlertEventMapper;
 import com.lzzh.monitor.dao.mapper.AlertEventOperateLogMapper;
 import com.lzzh.monitor.dao.mapper.AlertNotifyRecordMapper;
@@ -95,6 +99,10 @@ public class AlertEventServiceImpl implements AlertEventService {
     private MetricDefinitionMapper metricDefinitionMapper;
     @Resource
     private AlertDrilldownProfileService drilldownProfileService;
+    @Resource
+    private DbInstanceMapper dbInstanceMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
 
     @Override
     public PageResult<AlertEventVo> page(AlertEventPageRequest req) {
@@ -192,8 +200,15 @@ public class AlertEventServiceImpl implements AlertEventService {
         String profileKey = "scenario".equals(e.getEventSource()) && StringUtils.hasText(e.getScenarioCode())
                 ? e.getScenarioCode()
                 : vo.getMetricCode();
-        vo.setProfile(drilldownProfileService.match(profileKey));
+        vo.setProfile(drilldownProfileService.match(profileKey, resolveDbType(e.getInstanceId())));
         return vo;
+    }
+
+    private String resolveDbType(Long instanceId) {
+        DbInstance instance = instanceId == null ? null : dbInstanceMapper.selectById(instanceId);
+        DatabaseType type = instance == null || instance.getDbTypeId() == null
+                ? null : databaseTypeMapper.selectById(instance.getDbTypeId());
+        return type == null ? null : type.getCode();
     }
 
     @Override

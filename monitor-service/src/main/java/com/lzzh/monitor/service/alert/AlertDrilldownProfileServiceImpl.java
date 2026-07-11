@@ -95,11 +95,24 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
 
     @Override
     public DrilldownProfileVo match(String metricCode) {
+        return match(metricCode, null);
+    }
+
+    @Override
+    public DrilldownProfileVo match(String metricCode, String dbType) {
         List<AlertDrilldownProfile> enabled = profileMapper.selectList(
                 new LambdaQueryWrapper<AlertDrilldownProfile>()
                         .eq(AlertDrilldownProfile::getEnabled, true)
                         .orderByAsc(AlertDrilldownProfile::getSort)
                         .orderByAsc(AlertDrilldownProfile::getId));
+        if (enabled.isEmpty()) {
+            return null;
+        }
+        if (StringUtils.hasText(dbType)) {
+            enabled = enabled.stream()
+                    .filter(p -> dbType.equalsIgnoreCase(p.getDbType()))
+                    .toList();
+        }
         if (enabled.isEmpty()) {
             return null;
         }

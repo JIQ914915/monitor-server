@@ -30,7 +30,7 @@ public class DrilldownProfileVo {
     @Schema(description = "匹配规则：[{matchType:exact|prefix, pattern}]，空数组=仅作兜底")
     private List<Map<String, Object>> matchRules;
 
-    @Schema(description = "关联指标：[{code,label,unit,color,toGB}]")
+    @Schema(description = "关联指标：[{code,label,unit,color,toGB,frequency}]，frequency 为 1m/1h")
     private List<Map<String, Object>> relatedMetrics;
 
     @Schema(description = "可能原因：[{cause,confidence,color,evidence[]}]")

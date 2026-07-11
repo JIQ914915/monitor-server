@@ -64,7 +64,7 @@ public class PgTopSqlItem implements PgMetricItem {
         long ts = System.currentTimeMillis();
 
         // 13+ 列名已统一（total_exec_time）；只取当前可见库的语句（监控账号有 pg_monitor 可见全部）
-        String sql = "SELECT d.datname, s.queryid, s.query, s.calls, s.total_exec_time, s.rows, "
+        String sql = "SELECT d.datname, s.queryid::text AS queryid, s.query, s.calls, s.total_exec_time, s.rows, "
                 + "s.shared_blks_read, s.shared_blks_hit, s.temp_blks_written "
                 + "FROM pg_stat_statements s "
                 + "LEFT JOIN pg_database d ON d.oid = s.dbid "
@@ -76,7 +76,9 @@ public class PgTopSqlItem implements PgMetricItem {
             try (ResultSet rs = st.executeQuery(sql)) {
                 while (rs.next()) {
                     String datname = rs.getString("datname");
-                    long queryId = rs.getLong("queryid");
+                    // queryid 是 64 位指纹标识，不参与运算。部分 PG 兼容实现会按无符号正数暴露，
+                    // 可能超过 Java Long 上限，因此从 SQL 起就转为文本读取。
+                    String queryId = rs.getString("queryid");
                     String queryText = rs.getString("query");
                     long calls = rs.getLong("calls");
                     double totalExecMs = rs.getDouble("total_exec_time");
@@ -94,7 +96,7 @@ public class PgTopSqlItem implements PgMetricItem {
 
                     long sumTimerPs = (long) (totalExecMs * MS_TO_PS);
                     TopSqlPoint point = (delta != null)
-                            ? new TopSqlPoint(datname, String.valueOf(queryId), queryText,
+                            ? new TopSqlPoint(datname, queryId, queryText,
                                     calls, sumTimerPs, sharedRead, rows,
                                     delta.deltaCalls(),
                                     (long) (delta.deltaExecMs() * MS_TO_PS),
@@ -103,7 +105,7 @@ public class PgTopSqlItem implements PgMetricItem {
                                     0L, 0L, 0L,
                                     0L, delta.deltaTempWritten(),
                                     ts)
-                            : new TopSqlPoint(datname, String.valueOf(queryId), queryText,
+                            : new TopSqlPoint(datname, queryId, queryText,
                                     calls, sumTimerPs, sharedRead, rows, ts);
                     // 首次采样 hasDelta()=false，由写入层过滤
                     sink.addTopSql(point);

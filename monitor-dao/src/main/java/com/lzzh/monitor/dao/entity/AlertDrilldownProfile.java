@@ -38,7 +38,7 @@ public class AlertDrilldownProfile {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Map<String, Object>> matchRules;
 
-    /** 关联指标：[{"code","label","unit","color","toGB"}]。 */
+    /** 关联指标：[{"code","label","unit","color","toGB","frequency"}]。 */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Map<String, Object>> relatedMetrics;
 

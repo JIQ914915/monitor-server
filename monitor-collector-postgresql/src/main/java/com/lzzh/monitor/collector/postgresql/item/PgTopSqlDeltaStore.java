@@ -37,7 +37,7 @@ public class PgTopSqlDeltaStore {
      * @param tempWritten  累积临时块写入数
      * @return 增量；首次采样或回绕时返回 null
      */
-    public Delta compute(long instanceId, String datname, long queryId,
+    public Delta compute(long instanceId, String datname, String queryId,
                          long calls, double totalExecMs, long rows,
                          long sharedRead, long sharedHit, long tempWritten) {
         pruneStaleIfDue();

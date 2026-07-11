@@ -30,4 +30,7 @@ public interface AlertDrilldownProfileService {
      * @return 命中的画像；画像库为空时返回 null（前端自行降级）
      */
     DrilldownProfileVo match(String metricCode);
+
+    /** 按实例数据库类型隔离画像，避免同一 host.* 指标跨 MySQL/PostgreSQL 误匹配。 */
+    DrilldownProfileVo match(String metricCode, String dbType);
 }

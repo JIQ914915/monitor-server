@@ -66,7 +66,7 @@ public class PgSlowQuerySampleItem implements PgMetricItem {
         boolean hasQueryId = majorVersion(request.getVersion()) >= 14;
 
         String sql = "SELECT pid, usename, client_addr::text AS client_addr, datname, "
-                + (hasQueryId ? "query_id, " : "NULL::bigint AS query_id, ")
+                + (hasQueryId ? "query_id::text AS query_id, " : "NULL::text AS query_id, ")
                 + "wait_event_type, wait_event, "
                 + "extract(epoch FROM query_start) * 1000 AS query_start_ms, "
                 + "extract(epoch FROM (now() - query_start)) * 1000000 AS elapsed_us, "
@@ -97,8 +97,8 @@ public class PgSlowQuerySampleItem implements PgMetricItem {
                     if (queryText.length() > MAX_SQL_LEN) {
                         queryText = queryText.substring(0, MAX_SQL_LEN);
                     }
-                    long queryId = rs.getLong("query_id");
-                    boolean hasDigest = !rs.wasNull() && queryId != 0;
+                    String queryId = rs.getString("query_id");
+                    boolean hasDigest = queryId != null && !queryId.isBlank() && !"0".equals(queryId);
                     String waitEventType = rs.getString("wait_event_type");
                     String waitEvent = rs.getString("wait_event");
 
@@ -108,7 +108,7 @@ public class PgSlowQuerySampleItem implements PgMetricItem {
                             rs.getString("usename"),
                             appendWait(rs.getString("client_addr"), waitEventType, waitEvent),
                             rs.getString("datname"),
-                            hasDigest ? String.valueOf(queryId) : null,
+                            hasDigest ? queryId : null,
                             queryText,
                             (long) rs.getDouble("elapsed_us"),
                             0L,
