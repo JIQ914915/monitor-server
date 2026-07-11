@@ -5,10 +5,15 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.preference.UserPreferenceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RequestMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -19,11 +24,8 @@ import java.util.Map;
 @RequestMapping("/api/v1/preference")
 public class PreferenceController {
 
-    private final UserPreferenceService preferenceService;
-
-    public PreferenceController(UserPreferenceService preferenceService) {
-        this.preferenceService = preferenceService;
-    }
+    @Resource
+    private UserPreferenceService preferenceService;
 
     /**
      * 获取当前用户主题（无则返回 null，前端回落系统默认）。

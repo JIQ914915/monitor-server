@@ -15,6 +15,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.alert.AlertEventService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,11 +34,8 @@ import java.util.List;
 @RequestMapping("/api/v1/alerts")
 public class AlertController {
 
-    private final AlertEventService alertEventService;
-
-    public AlertController(AlertEventService alertEventService) {
-        this.alertEventService = alertEventService;
-    }
+    @Resource
+    private AlertEventService alertEventService;
 
     /**
      * 分页查询告警事件。

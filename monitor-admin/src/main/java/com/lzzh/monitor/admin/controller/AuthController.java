@@ -17,6 +17,7 @@ import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.menu.MenuService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,21 +38,16 @@ import java.util.Map;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    private final SysUserMapper userMapper;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
-    private final RolePermissionResolver permissionResolver;
-    private final MenuService menuService;
-
-    public AuthController(SysUserMapper userMapper, PasswordEncoder passwordEncoder,
-                          JwtUtil jwtUtil, RolePermissionResolver permissionResolver,
-                          MenuService menuService) {
-        this.userMapper = userMapper;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil = jwtUtil;
-        this.permissionResolver = permissionResolver;
-        this.menuService = menuService;
-    }
+    @Resource
+    private SysUserMapper userMapper;
+    @Resource
+    private PasswordEncoder passwordEncoder;
+    @Resource
+    private JwtUtil jwtUtil;
+    @Resource
+    private RolePermissionResolver permissionResolver;
+    @Resource
+    private MenuService menuService;
 
     /**
      * 用户登录。

@@ -12,6 +12,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.scenario.ScenarioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,11 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/scenarios")
 public class ScenarioController {
 
-    private final ScenarioService scenarioService;
-
-    public ScenarioController(ScenarioService scenarioService) {
-        this.scenarioService = scenarioService;
-    }
+    @Resource
+    private ScenarioService scenarioService;
 
     @Operation(summary = "查询实例适配的场景列表",
             description = "返回场景列表（含各信号实时状态、当前触发状态、触发次数）与统计卡片数据，场景数量少不分页")

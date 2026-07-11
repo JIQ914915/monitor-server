@@ -1,6 +1,7 @@
 package com.lzzh.monitor.admin.log;
 
 import com.lzzh.monitor.dao.mapper.SysOperLogMapper;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
@@ -23,11 +24,8 @@ public class OperateLogEventListener {
 
     private static final Logger log = LoggerFactory.getLogger(OperateLogEventListener.class);
 
-    private final SysOperLogMapper operLogMapper;
-
-    public OperateLogEventListener(SysOperLogMapper operLogMapper) {
-        this.operLogMapper = operLogMapper;
-    }
+    @Resource
+    private SysOperLogMapper operLogMapper;
 
     @Async("operateLogExecutor")
     @EventListener

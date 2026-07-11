@@ -23,6 +23,7 @@ import com.lzzh.monitor.service.metric.SlowSqlExplainService;
 import com.lzzh.monitor.service.metric.SlowSqlQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -43,14 +44,10 @@ import java.util.List;
 @RequestMapping("/api/v1/slow-sql")
 public class SlowSqlController {
 
-    private final SlowSqlQueryService slowSqlQueryService;
-    private final SlowSqlExplainService slowSqlExplainService;
-
-    public SlowSqlController(SlowSqlQueryService slowSqlQueryService,
-                             SlowSqlExplainService slowSqlExplainService) {
-        this.slowSqlQueryService = slowSqlQueryService;
-        this.slowSqlExplainService = slowSqlExplainService;
-    }
+    @Resource
+    private SlowSqlQueryService slowSqlQueryService;
+    @Resource
+    private SlowSqlExplainService slowSqlExplainService;
 
     @Operation(
             summary = "慢SQL指纹聚合分页",

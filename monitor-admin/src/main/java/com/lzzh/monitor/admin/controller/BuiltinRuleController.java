@@ -11,6 +11,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.alert.AlertRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,11 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/alerts/builtin-rules")
 public class BuiltinRuleController {
 
-    private final AlertRuleService alertRuleService;
-
-    public BuiltinRuleController(AlertRuleService alertRuleService) {
-        this.alertRuleService = alertRuleService;
-    }
+    @Resource
+    private AlertRuleService alertRuleService;
 
     @Operation(summary = "分页查询内置规则模板", description = "全局视角，支持按类型/级别/数据来源过滤")
     @PostMapping("/page")

@@ -2,6 +2,7 @@ package com.lzzh.monitor.admin.config;
 
 import com.lzzh.monitor.admin.security.JwtAuthFilter;
 import com.lzzh.monitor.common.security.JwtProperties;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -39,11 +40,8 @@ public class SecurityConfig {
             "/swagger-resources/**"
     };
 
-    private final JwtAuthFilter jwtAuthFilter;
-
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
-        this.jwtAuthFilter = jwtAuthFilter;
-    }
+    @Resource
+    private JwtAuthFilter jwtAuthFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {

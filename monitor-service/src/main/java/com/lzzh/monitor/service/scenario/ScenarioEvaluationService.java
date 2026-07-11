@@ -11,6 +11,7 @@ import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator.SignalStatus
 import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator.TriState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -31,17 +32,12 @@ public class ScenarioEvaluationService {
 
     private static final Logger log = LoggerFactory.getLogger(ScenarioEvaluationService.class);
 
-    private final TsMetricLatestDao tsMetricLatestDao;
-    private final MetricValueQueryDao metricValueQueryDao;
-    private final MetricDefinitionMapper metricDefinitionMapper;
-
-    public ScenarioEvaluationService(TsMetricLatestDao tsMetricLatestDao,
-                                     MetricValueQueryDao metricValueQueryDao,
-                                     MetricDefinitionMapper metricDefinitionMapper) {
-        this.tsMetricLatestDao = tsMetricLatestDao;
-        this.metricValueQueryDao = metricValueQueryDao;
-        this.metricDefinitionMapper = metricDefinitionMapper;
-    }
+    @Resource
+    private TsMetricLatestDao tsMetricLatestDao;
+    @Resource
+    private MetricValueQueryDao metricValueQueryDao;
+    @Resource
+    private MetricDefinitionMapper metricDefinitionMapper;
 
     /**
      * 场景求值结果。

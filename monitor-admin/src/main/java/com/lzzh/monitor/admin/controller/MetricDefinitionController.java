@@ -5,10 +5,15 @@ import com.lzzh.monitor.dao.entity.MetricDefinition;
 import com.lzzh.monitor.service.metric.MetricDefinitionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RequestMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RequestParam;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -23,11 +28,8 @@ import java.util.List;
 @RequestMapping("/api/v1/metric-definitions")
 public class MetricDefinitionController {
 
-    private final MetricDefinitionService metricDefinitionService;
-
-    public MetricDefinitionController(MetricDefinitionService metricDefinitionService) {
-        this.metricDefinitionService = metricDefinitionService;
-    }
+    @Resource
+    private MetricDefinitionService metricDefinitionService;
 
     /**
      * 查询全部指标定义（可按 dbType 过滤）。前端首次加载时拉取并缓存到本地，

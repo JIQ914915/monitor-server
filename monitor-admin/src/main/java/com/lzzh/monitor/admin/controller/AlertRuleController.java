@@ -10,6 +10,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.alert.AlertRuleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,11 +22,8 @@ import java.util.Map;
 @RequestMapping("/api/v1/alerts/rules")
 public class AlertRuleController {
 
-    private final AlertRuleService alertRuleService;
-
-    public AlertRuleController(AlertRuleService alertRuleService) {
-        this.alertRuleService = alertRuleService;
-    }
+    @Resource
+    private AlertRuleService alertRuleService;
 
     @Operation(summary = "分页查询告警规则")
     @PostMapping("/page")

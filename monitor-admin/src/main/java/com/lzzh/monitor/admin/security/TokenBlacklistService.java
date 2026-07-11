@@ -1,6 +1,8 @@
 package com.lzzh.monitor.admin.security;
 
 import com.lzzh.monitor.common.security.JwtProperties;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -34,11 +36,15 @@ public class TokenBlacklistService {
     private static final Logger log = LoggerFactory.getLogger(TokenBlacklistService.class);
     private static final String KEY_PREFIX = "token:user:blocked:";
 
-    private final StringRedisTemplate redisTemplate;
-    private final Duration tokenTtl;
+    @Resource
+    private StringRedisTemplate redisTemplate;
+    @Resource
+    private JwtProperties jwtProperties;
 
-    public TokenBlacklistService(StringRedisTemplate redisTemplate, JwtProperties jwtProperties) {
-        this.redisTemplate = redisTemplate;
+    private Duration tokenTtl;
+
+    @PostConstruct
+    void initTokenTtl() {
         this.tokenTtl = Duration.ofMillis(jwtProperties.getExpireMillis());
     }
 

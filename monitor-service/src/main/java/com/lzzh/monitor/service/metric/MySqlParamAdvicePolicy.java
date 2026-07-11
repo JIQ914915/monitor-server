@@ -2,17 +2,15 @@ package com.lzzh.monitor.service.metric;
 
 import com.lzzh.monitor.api.response.ParamAdviceVo;
 import com.lzzh.monitor.common.enums.DbType;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
 class MySqlParamAdvicePolicy implements ParamAdvicePolicy {
-    private final ParamAdviceRuleEngine rules;
-
-    MySqlParamAdvicePolicy(ParamAdviceRuleEngine rules) {
-        this.rules = rules;
-    }
+    @Resource
+    private ParamAdviceRuleEngine rules;
 
     @Override
     public DbType supportedType() {

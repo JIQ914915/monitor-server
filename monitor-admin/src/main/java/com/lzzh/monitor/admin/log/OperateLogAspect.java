@@ -4,6 +4,7 @@ import com.lzzh.monitor.admin.security.LoginUser;
 import com.lzzh.monitor.admin.security.SecurityUtils;
 import com.lzzh.monitor.common.log.OperateLog;
 import com.lzzh.monitor.dao.entity.SysOperLog;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -52,11 +53,8 @@ public class OperateLogAspect {
     /** 匹配 JSON 中形如 "xxxFieldName":"value" 的模式，字段名只需包含 {@link #SENSITIVE_KEYS} 任一片段。 */
     private static final Pattern SENSITIVE_PATTERN = buildSensitivePattern();
 
-    private final ApplicationEventPublisher eventPublisher;
-
-    public OperateLogAspect(ApplicationEventPublisher eventPublisher) {
-        this.eventPublisher = eventPublisher;
-    }
+    @Resource
+    private ApplicationEventPublisher eventPublisher;
 
     @Around("@annotation(operateLog)")
     public Object around(ProceedingJoinPoint pjp, OperateLog operateLog) throws Throwable {

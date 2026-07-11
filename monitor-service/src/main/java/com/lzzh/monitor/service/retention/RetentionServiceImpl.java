@@ -6,6 +6,7 @@ import com.lzzh.monitor.api.response.RetentionVo;
 import com.lzzh.monitor.dao.entity.RetentionConfig;
 import com.lzzh.monitor.dao.mapper.RetentionConfigMapper;
 import com.lzzh.monitor.service.convert.RetentionConverter;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -28,13 +29,10 @@ public class RetentionServiceImpl implements RetentionService {
         FACTORY.put("report", 365);
     }
 
-    private final RetentionConfigMapper mapper;
-    private final RetentionPolicyApplier policyApplier;
-
-    public RetentionServiceImpl(RetentionConfigMapper mapper, RetentionPolicyApplier policyApplier) {
-        this.mapper = mapper;
-        this.policyApplier = policyApplier;
-    }
+    @Resource
+    private RetentionConfigMapper mapper;
+    @Resource
+    private RetentionPolicyApplier policyApplier;
 
     /**
      * 出厂默认（天），与 V2 种子一致。

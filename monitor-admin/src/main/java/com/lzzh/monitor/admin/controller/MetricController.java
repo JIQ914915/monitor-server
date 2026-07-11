@@ -40,6 +40,7 @@ import com.lzzh.monitor.service.metric.ParamAdviceService;
 import com.lzzh.monitor.service.metric.ParamMetaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,20 +60,14 @@ import java.util.List;
 @RequestMapping("/api/v1/metrics")
 public class MetricController {
 
-    private final MetricQueryService metricQueryService;
-    private final HealthScoreService healthScoreService;
-    private final ParamMetaService paramMetaService;
-    private final ParamAdviceService paramAdviceService;
-
-    public MetricController(MetricQueryService metricQueryService,
-                            HealthScoreService healthScoreService,
-                            ParamMetaService paramMetaService,
-                            ParamAdviceService paramAdviceService) {
-        this.metricQueryService = metricQueryService;
-        this.healthScoreService = healthScoreService;
-        this.paramMetaService = paramMetaService;
-        this.paramAdviceService = paramAdviceService;
-    }
+    @Resource
+    private MetricQueryService metricQueryService;
+    @Resource
+    private HealthScoreService healthScoreService;
+    @Resource
+    private ParamMetaService paramMetaService;
+    @Resource
+    private ParamAdviceService paramAdviceService;
 
     @Operation(
             summary = "实例健康评分",

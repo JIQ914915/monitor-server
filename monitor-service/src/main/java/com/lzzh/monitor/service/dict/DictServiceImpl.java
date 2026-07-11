@@ -13,6 +13,7 @@ import com.lzzh.monitor.dao.mapper.SysDictItemMapper;
 import com.lzzh.monitor.dao.mapper.SysDictTypeMapper;
 import com.lzzh.monitor.service.convert.DictConverter;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -23,13 +24,10 @@ import java.util.List;
 @Service
 public class DictServiceImpl implements DictService {
 
-    private final SysDictTypeMapper typeMapper;
-    private final SysDictItemMapper itemMapper;
-
-    public DictServiceImpl(SysDictTypeMapper typeMapper, SysDictItemMapper itemMapper) {
-        this.typeMapper = typeMapper;
-        this.itemMapper = itemMapper;
-    }
+    @Resource
+    private SysDictTypeMapper typeMapper;
+    @Resource
+    private SysDictItemMapper itemMapper;
 
     /**
      * 查询全部字典类型（按 ID 升序）。

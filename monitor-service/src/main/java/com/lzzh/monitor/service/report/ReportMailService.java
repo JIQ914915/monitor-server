@@ -1,6 +1,7 @@
 package com.lzzh.monitor.service.report;
 
 import com.lzzh.monitor.dao.entity.MonitorReport;
+import jakarta.annotation.Resource;
 import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,14 +27,11 @@ public class ReportMailService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportMailService.class);
 
-    private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    @Resource
+    private ObjectProvider<JavaMailSender> mailSenderProvider;
 
     @Value("${monitor.report.mail-from:${spring.mail.username:}}")
     private String mailFrom;
-
-    public ReportMailService(ObjectProvider<JavaMailSender> mailSenderProvider) {
-        this.mailSenderProvider = mailSenderProvider;
-    }
 
     /** 邮件服务是否可用（配置了 spring.mail.host 时自动装配 JavaMailSender）。 */
     public boolean available() {

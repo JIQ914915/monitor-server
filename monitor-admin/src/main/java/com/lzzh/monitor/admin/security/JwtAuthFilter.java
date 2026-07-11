@@ -7,6 +7,7 @@ import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import jakarta.annotation.Resource;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,21 +35,16 @@ import java.util.List;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtUtil jwtUtil;
-    private final JwtProperties props;
-    private final SysUserMapper userMapper;
-    private final RolePermissionResolver permissionResolver;
-    private final TokenBlacklistService blacklistService;
-
-    public JwtAuthFilter(JwtUtil jwtUtil, JwtProperties props,
-                         SysUserMapper userMapper, RolePermissionResolver permissionResolver,
-                         TokenBlacklistService blacklistService) {
-        this.jwtUtil = jwtUtil;
-        this.props = props;
-        this.userMapper = userMapper;
-        this.permissionResolver = permissionResolver;
-        this.blacklistService = blacklistService;
-    }
+    @Resource
+    private JwtUtil jwtUtil;
+    @Resource
+    private JwtProperties props;
+    @Resource
+    private SysUserMapper userMapper;
+    @Resource
+    private RolePermissionResolver permissionResolver;
+    @Resource
+    private TokenBlacklistService blacklistService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,

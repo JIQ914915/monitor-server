@@ -14,6 +14,7 @@ import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.role.RoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,16 +30,12 @@ import java.util.List;
 @RequestMapping("/api/v1/roles")
 public class RoleController {
 
-    private final RoleService roleService;
-    private final TokenBlacklistService blacklistService;
-    private final SysUserMapper userMapper;
-
-    public RoleController(RoleService roleService, TokenBlacklistService blacklistService,
-                          SysUserMapper userMapper) {
-        this.roleService = roleService;
-        this.blacklistService = blacklistService;
-        this.userMapper = userMapper;
-    }
+    @Resource
+    private RoleService roleService;
+    @Resource
+    private TokenBlacklistService blacklistService;
+    @Resource
+    private SysUserMapper userMapper;
 
     /**
      * 分页查询角色。

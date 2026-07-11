@@ -6,6 +6,7 @@ import com.lzzh.monitor.api.response.DrilldownProfileVo;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.AlertDrilldownProfile;
 import com.lzzh.monitor.dao.mapper.AlertDrilldownProfileMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,11 +23,8 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
 
     private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private final AlertDrilldownProfileMapper profileMapper;
-
-    public AlertDrilldownProfileServiceImpl(AlertDrilldownProfileMapper profileMapper) {
-        this.profileMapper = profileMapper;
-    }
+    @Resource
+    private AlertDrilldownProfileMapper profileMapper;
 
     @Override
     public List<DrilldownProfileVo> list() {

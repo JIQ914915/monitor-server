@@ -2,6 +2,7 @@ package com.lzzh.monitor.service.preference;
 
 import com.lzzh.monitor.dao.entity.UserPreference;
 import com.lzzh.monitor.dao.mapper.UserPreferenceMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -10,11 +11,8 @@ import java.util.Map;
 @Service
 public class UserPreferenceServiceImpl implements UserPreferenceService {
 
-    private final UserPreferenceMapper mapper;
-
-    public UserPreferenceServiceImpl(UserPreferenceMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private UserPreferenceMapper mapper;
 
     /**
      * 获取用户主题配置；无记录则返回 null。

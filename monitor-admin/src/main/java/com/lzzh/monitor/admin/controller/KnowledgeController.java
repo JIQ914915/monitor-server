@@ -11,6 +11,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.knowledge.KnowledgeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,11 +27,8 @@ import java.util.List;
 @RequestMapping("/api/v1/knowledge")
 public class KnowledgeController {
 
-    private final KnowledgeService knowledgeService;
-
-    public KnowledgeController(KnowledgeService knowledgeService) {
-        this.knowledgeService = knowledgeService;
-    }
+    @Resource
+    private KnowledgeService knowledgeService;
 
     /**
      * 分页查询知识文章。

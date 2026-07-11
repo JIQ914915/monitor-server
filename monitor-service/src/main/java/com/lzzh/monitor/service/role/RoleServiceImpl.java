@@ -14,6 +14,7 @@ import com.lzzh.monitor.dao.mapper.SysRoleMapper;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.convert.RoleConverter;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,13 +24,10 @@ import java.util.List;
 @Service
 public class RoleServiceImpl implements RoleService {
 
-    private final SysRoleMapper mapper;
-    private final SysUserMapper userMapper;
-
-    public RoleServiceImpl(SysRoleMapper mapper, SysUserMapper userMapper) {
-        this.mapper = mapper;
-        this.userMapper = userMapper;
-    }
+    @Resource
+    private SysRoleMapper mapper;
+    @Resource
+    private SysUserMapper userMapper;
 
     /**
      * 分页查询角色，并补充每个角色的关联用户数。

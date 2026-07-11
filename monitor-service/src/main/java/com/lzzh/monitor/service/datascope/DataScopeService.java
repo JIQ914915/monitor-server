@@ -6,6 +6,7 @@ import com.lzzh.monitor.dao.entity.SysRole;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.InstanceGroupMapper;
 import com.lzzh.monitor.dao.mapper.SysRoleMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -32,15 +33,12 @@ import java.util.Set;
 @Service
 public class DataScopeService {
 
-    private final SysRoleMapper roleMapper;
-    private final DbInstanceMapper instanceMapper;
-    private final InstanceGroupMapper groupMapper;
-
-    public DataScopeService(SysRoleMapper roleMapper, DbInstanceMapper instanceMapper, InstanceGroupMapper groupMapper) {
-        this.roleMapper = roleMapper;
-        this.instanceMapper = instanceMapper;
-        this.groupMapper = groupMapper;
-    }
+    @Resource
+    private SysRoleMapper roleMapper;
+    @Resource
+    private DbInstanceMapper instanceMapper;
+    @Resource
+    private InstanceGroupMapper groupMapper;
 
     /**
      * 取当前线程绑定的登录用户（{@link CurrentUserHolder}）解析数据范围；

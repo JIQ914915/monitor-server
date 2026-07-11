@@ -12,6 +12,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.menu.MenuService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,11 +28,8 @@ import java.util.List;
 @RequestMapping("/api/v1/menus")
 public class MenuController {
 
-    private final MenuService menuService;
-
-    public MenuController(MenuService menuService) {
-        this.menuService = menuService;
-    }
+    @Resource
+    private MenuService menuService;
 
     /**
      * 分页查询菜单。

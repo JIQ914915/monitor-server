@@ -12,6 +12,7 @@ import com.lzzh.monitor.dao.entity.SysUser;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.convert.UserConverter;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,11 +22,8 @@ import java.util.List;
 @Service
 public class UserServiceImpl implements UserService {
 
-    private final SysUserMapper mapper;
-
-    public UserServiceImpl(SysUserMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private SysUserMapper mapper;
 
     /**
      * 分页查询用户。

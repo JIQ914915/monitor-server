@@ -9,6 +9,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.datatype.DatabaseVersionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,11 +26,8 @@ import java.util.List;
 @RequestMapping("/api/v1/database-versions")
 public class DatabaseVersionController {
 
-    private final DatabaseVersionService versionService;
-
-    public DatabaseVersionController(DatabaseVersionService versionService) {
-        this.versionService = versionService;
-    }
+    @Resource
+    private DatabaseVersionService versionService;
 
     /**
      * 查询数据库版本列表（可按 dbType 过滤）。

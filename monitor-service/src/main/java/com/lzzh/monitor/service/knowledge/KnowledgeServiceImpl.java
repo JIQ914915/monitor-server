@@ -10,6 +10,7 @@ import com.lzzh.monitor.dao.entity.KnowledgeArticle;
 import com.lzzh.monitor.dao.mapper.KnowledgeArticleMapper;
 import com.lzzh.monitor.service.convert.KnowledgeConverter;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,11 +20,8 @@ import java.util.List;
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
 
-    private final KnowledgeArticleMapper mapper;
-
-    public KnowledgeServiceImpl(KnowledgeArticleMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private KnowledgeArticleMapper mapper;
 
     /**
      * 分页查询知识文章。

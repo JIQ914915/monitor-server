@@ -8,6 +8,7 @@ import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -42,17 +43,12 @@ public class SlowSqlExplainServiceImpl implements SlowSqlExplainService {
 
     private static final int QUERY_TIMEOUT_SECONDS = 10;
 
-    private final DbInstanceMapper instanceMapper;
-    private final DatabaseTypeMapper databaseTypeMapper;
-    private final PasswordCipher passwordCipher;
-
-    public SlowSqlExplainServiceImpl(DbInstanceMapper instanceMapper,
-                                     DatabaseTypeMapper databaseTypeMapper,
-                                     PasswordCipher passwordCipher) {
-        this.instanceMapper = instanceMapper;
-        this.databaseTypeMapper = databaseTypeMapper;
-        this.passwordCipher = passwordCipher;
-    }
+    @Resource
+    private DbInstanceMapper instanceMapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
+    @Resource
+    private PasswordCipher passwordCipher;
 
     @Override
     public SlowSqlExplainVo explain(SlowSqlExplainRequest request) {

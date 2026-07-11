@@ -9,6 +9,7 @@ import com.lzzh.monitor.dao.mapper.CollectLogMapper;
 import com.lzzh.monitor.service.instance.InstanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,14 +32,10 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/v1/collect-logs")
 public class CollectLogController {
 
-    private final CollectLogMapper collectLogMapper;
-    private final InstanceService instanceService;
-
-    public CollectLogController(CollectLogMapper collectLogMapper,
-                                InstanceService instanceService) {
-        this.collectLogMapper = collectLogMapper;
-        this.instanceService = instanceService;
-    }
+    @Resource
+    private CollectLogMapper collectLogMapper;
+    @Resource
+    private InstanceService instanceService;
 
     /**
      * 采集任务列表：每个实例 × 频率组合一行，展示最近执行状态与 24h 成功率。

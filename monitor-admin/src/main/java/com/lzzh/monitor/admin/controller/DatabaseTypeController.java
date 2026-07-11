@@ -10,6 +10,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.datatype.DatabaseTypeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,11 +26,8 @@ import java.util.List;
 @RequestMapping("/api/v1/database-types")
 public class DatabaseTypeController {
 
-    private final DatabaseTypeService databaseTypeService;
-
-    public DatabaseTypeController(DatabaseTypeService databaseTypeService) {
-        this.databaseTypeService = databaseTypeService;
-    }
+    @Resource
+    private DatabaseTypeService databaseTypeService;
 
     // ===== 实例表单下拉（原有接口保持不变） =====
 

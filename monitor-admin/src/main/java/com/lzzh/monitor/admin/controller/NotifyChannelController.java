@@ -8,6 +8,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.alert.AlertNotifyChannelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,11 +29,8 @@ import java.util.List;
 @RequestMapping("/api/v1/alerts/notify-channels")
 public class NotifyChannelController {
 
-    private final AlertNotifyChannelService channelService;
-
-    public NotifyChannelController(AlertNotifyChannelService channelService) {
-        this.channelService = channelService;
-    }
+    @Resource
+    private AlertNotifyChannelService channelService;
 
     /**
      * 查询全部通道配置。

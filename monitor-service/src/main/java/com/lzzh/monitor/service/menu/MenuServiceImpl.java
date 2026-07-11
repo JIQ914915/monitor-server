@@ -11,6 +11,7 @@ import com.lzzh.monitor.dao.entity.SysMenu;
 import com.lzzh.monitor.dao.mapper.SysMenuMapper;
 import com.lzzh.monitor.service.convert.MenuConverter;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,16 +21,8 @@ import java.util.List;
 @Service
 public class MenuServiceImpl implements MenuService {
 
-    private final SysMenuMapper mapper;
-
-    /**
-     * 构造菜单管理服务实现。
-     *
-     * @param mapper 菜单 Mapper
-     */
-    public MenuServiceImpl(SysMenuMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private SysMenuMapper mapper;
 
     /**
      * 分页查询菜单，支持按名称/编码关键字过滤，并按排序号与主键升序排列。

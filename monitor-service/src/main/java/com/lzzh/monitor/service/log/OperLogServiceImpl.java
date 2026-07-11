@@ -9,6 +9,7 @@ import com.lzzh.monitor.dao.entity.SysOperLog;
 import com.lzzh.monitor.dao.mapper.SysOperLogMapper;
 import com.lzzh.monitor.service.convert.OperLogConverter;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -17,11 +18,8 @@ import java.util.List;
 @Service
 public class OperLogServiceImpl implements OperLogService {
 
-    private final SysOperLogMapper mapper;
-
-    public OperLogServiceImpl(SysOperLogMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private SysOperLogMapper mapper;
 
     /**
      * 分页查询操作日志。

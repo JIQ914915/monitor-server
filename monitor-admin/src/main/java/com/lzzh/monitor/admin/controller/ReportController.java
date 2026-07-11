@@ -15,6 +15,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.report.ReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,11 +30,8 @@ import java.util.List;
 @RequestMapping("/api/v1/reports")
 public class ReportController {
 
-    private final ReportService reportService;
-
-    public ReportController(ReportService reportService) {
-        this.reportService = reportService;
-    }
+    @Resource
+    private ReportService reportService;
 
     /**
      * 报告归档分页查询。

@@ -5,6 +5,7 @@ import com.lzzh.monitor.api.request.DatabaseVersionRequest;
 import com.lzzh.monitor.api.response.DatabaseVersionVo;
 import com.lzzh.monitor.dao.entity.DatabaseVersion;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -15,11 +16,8 @@ import java.util.List;
 @Service
 public class DatabaseVersionServiceImpl implements DatabaseVersionService {
 
-    private final DatabaseVersionMapper mapper;
-
-    public DatabaseVersionServiceImpl(DatabaseVersionMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private DatabaseVersionMapper mapper;
 
     @Override
     public List<DatabaseVersionVo> list(String dbType) {

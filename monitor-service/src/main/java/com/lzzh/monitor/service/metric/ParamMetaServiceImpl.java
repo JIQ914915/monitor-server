@@ -7,6 +7,7 @@ import com.lzzh.monitor.api.response.ParamMetaVo;
 import com.lzzh.monitor.dao.entity.MysqlParamMeta;
 import com.lzzh.monitor.dao.mapper.MysqlParamMetaMapper;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -15,11 +16,8 @@ import java.util.List;
 @Service
 public class ParamMetaServiceImpl implements ParamMetaService {
 
-    private final MysqlParamMetaMapper mapper;
-
-    public ParamMetaServiceImpl(MysqlParamMetaMapper mapper) {
-        this.mapper = mapper;
-    }
+    @Resource
+    private MysqlParamMetaMapper mapper;
 
     @Override
     public List<ParamMetaVo> listAll() {

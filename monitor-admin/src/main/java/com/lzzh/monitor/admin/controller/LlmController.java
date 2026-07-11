@@ -12,6 +12,7 @@ import com.lzzh.monitor.service.llm.LlmAnalysisService;
 import com.lzzh.monitor.service.llm.LlmConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import lombok.Data;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,13 +29,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/llm")
 public class LlmController {
 
-    private final LlmConfigService configService;
-    private final LlmAnalysisService analysisService;
-
-    public LlmController(LlmConfigService configService, LlmAnalysisService analysisService) {
-        this.configService = configService;
-        this.analysisService = analysisService;
-    }
+    @Resource
+    private LlmConfigService configService;
+    @Resource
+    private LlmAnalysisService analysisService;
 
     @Operation(summary = "查询智能分析配置", description = "api_key 只回显掩码，从不回显真实值")
     @PostMapping("/config/get")

@@ -14,6 +14,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.user.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.util.StringUtils;
@@ -34,16 +35,12 @@ public class UserController {
     /** 重置/新建用户的默认口令。 */
     private static final String DEFAULT_PASSWORD = "123456";
 
-    private final UserService userService;
-    private final PasswordEncoder passwordEncoder;
-    private final TokenBlacklistService blacklistService;
-
-    public UserController(UserService userService, PasswordEncoder passwordEncoder,
-                          TokenBlacklistService blacklistService) {
-        this.userService = userService;
-        this.passwordEncoder = passwordEncoder;
-        this.blacklistService = blacklistService;
-    }
+    @Resource
+    private UserService userService;
+    @Resource
+    private PasswordEncoder passwordEncoder;
+    @Resource
+    private TokenBlacklistService blacklistService;
 
     /**
      * 分页查询用户。

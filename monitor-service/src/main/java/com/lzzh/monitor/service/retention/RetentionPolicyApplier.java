@@ -1,6 +1,7 @@
 package com.lzzh.monitor.service.retention;
 
 import com.lzzh.monitor.dao.retention.TimescaleRetentionPolicyDao;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -41,11 +42,8 @@ public class RetentionPolicyApplier {
             "hourly", List.of("metric_data_1h_cagg"),
             "daily", List.of("metric_data_1d_cagg", "capacity_object_daily"));
 
-    private final TimescaleRetentionPolicyDao policyDao;
-
-    public RetentionPolicyApplier(TimescaleRetentionPolicyDao policyDao) {
-        this.policyDao = policyDao;
-    }
+    @Resource
+    private TimescaleRetentionPolicyDao policyDao;
 
     /** 该类别是否由 TimescaleDB 保留策略承载（分钟/小时/天/慢SQL样本）。 */
     public static boolean isHypertableCategory(String category) {

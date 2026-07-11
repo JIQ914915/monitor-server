@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzzh.monitor.dao.entity.MetricDefinition;
 import com.lzzh.monitor.dao.mapper.MetricDefinitionMapper;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,16 +29,13 @@ public class MetricDefinitionServiceImpl implements MetricDefinitionService {
 
     private static final Logger log = LoggerFactory.getLogger(MetricDefinitionServiceImpl.class);
 
-    private final MetricDefinitionMapper mapper;
+    @Resource
+    private MetricDefinitionMapper mapper;
 
     /** metricCode → MetricDefinition */
     private volatile Map<String, MetricDefinition> codeMap = new ConcurrentHashMap<>();
     /** dbType（小写）→ List<MetricDefinition> */
     private volatile Map<String, List<MetricDefinition>> typeIndex = new ConcurrentHashMap<>();
-
-    public MetricDefinitionServiceImpl(MetricDefinitionMapper mapper) {
-        this.mapper = mapper;
-    }
 
     @PostConstruct
     public void init() {

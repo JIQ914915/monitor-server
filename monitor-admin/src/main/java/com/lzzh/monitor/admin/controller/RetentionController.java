@@ -7,10 +7,15 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.retention.RetentionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.GetMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RequestMapping;
+import jakarta.annotation.Resource;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.LinkedHashMap;
@@ -23,11 +28,8 @@ import java.util.Map;
 @RequestMapping("/api/v1/retention")
 public class RetentionController {
 
-    private final RetentionService retentionService;
-
-    public RetentionController(RetentionService retentionService) {
-        this.retentionService = retentionService;
-    }
+    @Resource
+    private RetentionService retentionService;
 
     /**
      * 查询数据保留策略。

@@ -18,6 +18,7 @@ import com.lzzh.monitor.service.instance.InstanceCapabilityService;
 import com.lzzh.monitor.service.instance.InstanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,14 +34,10 @@ import java.util.List;
 @RequestMapping("/api/v1/instances")
 public class InstanceController {
 
-    private final InstanceService instanceService;
-    private final InstanceCapabilityService instanceCapabilityService;
-
-    public InstanceController(InstanceService instanceService,
-                              InstanceCapabilityService instanceCapabilityService) {
-        this.instanceService = instanceService;
-        this.instanceCapabilityService = instanceCapabilityService;
-    }
+    @Resource
+    private InstanceService instanceService;
+    @Resource
+    private InstanceCapabilityService instanceCapabilityService;
 
     /**
      * 分页查询实例。

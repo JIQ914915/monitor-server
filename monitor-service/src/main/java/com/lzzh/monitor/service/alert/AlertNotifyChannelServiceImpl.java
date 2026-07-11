@@ -7,6 +7,7 @@ import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.common.security.PasswordCipher;
 import com.lzzh.monitor.dao.entity.AlertNotifyChannelConfig;
 import com.lzzh.monitor.dao.mapper.AlertNotifyChannelConfigMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -42,13 +43,10 @@ public class AlertNotifyChannelServiceImpl implements AlertNotifyChannelService 
     /** 通道展示顺序。 */
     private static final List<String> CHANNEL_ORDER = List.of("webhook", "dingtalk", "wecom", "feishu");
 
-    private final AlertNotifyChannelConfigMapper channelMapper;
-    private final PasswordCipher passwordCipher;
-
-    public AlertNotifyChannelServiceImpl(AlertNotifyChannelConfigMapper channelMapper, PasswordCipher passwordCipher) {
-        this.channelMapper = channelMapper;
-        this.passwordCipher = passwordCipher;
-    }
+    @Resource
+    private AlertNotifyChannelConfigMapper channelMapper;
+    @Resource
+    private PasswordCipher passwordCipher;
 
     @Override
     public List<AlertNotifyChannelVo> list() {

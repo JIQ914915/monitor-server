@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzzh.monitor.common.constant.Constants;
 import com.lzzh.monitor.dao.entity.SysRole;
 import com.lzzh.monitor.dao.mapper.SysRoleMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -16,11 +17,8 @@ import java.util.Set;
 @Component
 public class RolePermissionResolver {
 
-    private final SysRoleMapper roleMapper;
-
-    public RolePermissionResolver(SysRoleMapper roleMapper) {
-        this.roleMapper = roleMapper;
-    }
+    @Resource
+    private SysRoleMapper roleMapper;
 
     public List<String> resolve(List<String> roleCodes) {
         if (CollectionUtils.isEmpty(roleCodes)) {

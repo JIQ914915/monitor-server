@@ -6,6 +6,7 @@ import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.common.security.PasswordCipher;
 import com.lzzh.monitor.dao.entity.LlmConfig;
 import com.lzzh.monitor.dao.mapper.LlmConfigMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,13 +23,10 @@ public class LlmConfigServiceImpl implements LlmConfigService {
     static final String SECRET_MASK = "******";
     private static final long CONFIG_ID = 1L;
 
-    private final LlmConfigMapper configMapper;
-    private final PasswordCipher passwordCipher;
-
-    public LlmConfigServiceImpl(LlmConfigMapper configMapper, PasswordCipher passwordCipher) {
-        this.configMapper = configMapper;
-        this.passwordCipher = passwordCipher;
-    }
+    @Resource
+    private LlmConfigMapper configMapper;
+    @Resource
+    private PasswordCipher passwordCipher;
 
     @Override
     public LlmConfigVo get() {

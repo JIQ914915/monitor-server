@@ -12,6 +12,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.dict.DictService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,11 +28,8 @@ import java.util.List;
 @RequestMapping("/api/v1/dicts")
 public class DictController {
 
-    private final DictService dictService;
-
-    public DictController(DictService dictService) {
-        this.dictService = dictService;
-    }
+    @Resource
+    private DictService dictService;
 
     // ===== 字典类型 =====
 

@@ -10,6 +10,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.alert.AlertDrilldownProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,11 +25,8 @@ import java.util.List;
 @RequestMapping("/api/v1/alerts/drilldown-profiles")
 public class DrilldownProfileController {
 
-    private final AlertDrilldownProfileService profileService;
-
-    public DrilldownProfileController(AlertDrilldownProfileService profileService) {
-        this.profileService = profileService;
-    }
+    @Resource
+    private AlertDrilldownProfileService profileService;
 
     /**
      * 查询全部画像。

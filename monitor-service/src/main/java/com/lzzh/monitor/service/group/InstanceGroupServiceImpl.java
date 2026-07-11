@@ -14,6 +14,7 @@ import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.InstanceGroupMapper;
 import com.lzzh.monitor.service.convert.GroupConverter;
 import com.lzzh.monitor.service.support.Pages;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,13 +24,10 @@ import java.util.List;
 @Service
 public class InstanceGroupServiceImpl implements InstanceGroupService {
 
-    private final InstanceGroupMapper mapper;
-    private final DbInstanceMapper instanceMapper;
-
-    public InstanceGroupServiceImpl(InstanceGroupMapper mapper, DbInstanceMapper instanceMapper) {
-        this.mapper = mapper;
-        this.instanceMapper = instanceMapper;
-    }
+    @Resource
+    private InstanceGroupMapper mapper;
+    @Resource
+    private DbInstanceMapper instanceMapper;
 
     /**
      * 分页查询分组，并补充每个分组关联的实例数。

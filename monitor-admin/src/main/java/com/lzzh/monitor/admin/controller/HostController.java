@@ -14,6 +14,7 @@ import com.lzzh.monitor.common.result.Result;
 import com.lzzh.monitor.service.host.HostService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,11 +29,8 @@ import java.util.List;
 @RequestMapping("/api/v1/hosts")
 public class HostController {
 
-    private final HostService hostService;
-
-    public HostController(HostService hostService) {
-        this.hostService = hostService;
-    }
+    @Resource
+    private HostService hostService;
 
     /**
      * 分页查询主机。

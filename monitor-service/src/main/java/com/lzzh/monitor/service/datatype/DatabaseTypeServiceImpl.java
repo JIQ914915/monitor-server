@@ -8,6 +8,7 @@ import com.lzzh.monitor.api.response.DbVersionOptionVo;
 import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,13 +23,10 @@ import java.util.List;
 @Service
 public class DatabaseTypeServiceImpl implements DatabaseTypeService {
 
-    private final DatabaseTypeMapper typeMapper;
-    private final DatabaseVersionMapper versionMapper;
-
-    public DatabaseTypeServiceImpl(DatabaseTypeMapper typeMapper, DatabaseVersionMapper versionMapper) {
-        this.typeMapper = typeMapper;
-        this.versionMapper = versionMapper;
-    }
+    @Resource
+    private DatabaseTypeMapper typeMapper;
+    @Resource
+    private DatabaseVersionMapper versionMapper;
 
     @Override
     public List<DatabaseTypeVo> listAll() {
