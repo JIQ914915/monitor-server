@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.mysql.item;
 
 import com.lzzh.monitor.collector.mysql.version.MySqlVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -84,7 +85,8 @@ public class GlobalStatusItem implements MySqlMetricItem {
             "Connection_errors_max_connections"
     );
 
-    private final CounterDeltaStore deltaStore;
+    @Resource
+    private CounterDeltaStore deltaStore;
 
     /**
      * 实例重启检测基线（instanceId → 上轮 Uptime 秒数）。
@@ -92,10 +94,6 @@ public class GlobalStatusItem implements MySqlMetricItem {
      * 基线仅存节点内存，Collector 重启后首轮不判定（与其他 delta 基线策略一致）。
      */
     private final ConcurrentHashMap<Long, Long> prevUptime = new ConcurrentHashMap<>();
-
-    public GlobalStatusItem(CounterDeltaStore deltaStore) {
-        this.deltaStore = deltaStore;
-    }
 
     @Override
     public String code() {

@@ -12,6 +12,8 @@ import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.CollectResult;
 import com.lzzh.monitor.common.enums.CollectFrequency;
 import com.lzzh.monitor.common.enums.DbType;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,17 +32,19 @@ public class MySqlCollector extends AbstractDatabaseCollector {
 
     private static final Logger log = LoggerFactory.getLogger(MySqlCollector.class);
 
-    private final MySqlVersionResolver resolver;
+    @Resource
+    private MySqlVersionResolver resolver;
     /** 编码 → 采集项实现（启动时由 Spring 注入全部 MySqlMetricItem）。 */
-    private final Map<String, MySqlMetricItem> items;
+    private Map<String, MySqlMetricItem> items;
+    @Resource
+    private List<MySqlMetricItem> itemList;
     /** 目标库连接缓存（P2-7）：每实例复用一条长连接，避免每轮重建 TCP+认证开销。 */
-    private final TargetConnectionCache connectionCache;
+    @Resource
+    private TargetConnectionCache connectionCache;
 
-    public MySqlCollector(MySqlVersionResolver resolver, List<MySqlMetricItem> itemList,
-                          TargetConnectionCache connectionCache) {
-        this.resolver = resolver;
+    @PostConstruct
+    void init() {
         this.items = itemList.stream().collect(Collectors.toMap(MySqlMetricItem::code, Function.identity()));
-        this.connectionCache = connectionCache;
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.mysql.item;
 
 import com.lzzh.monitor.collector.mysql.version.MySqlVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,11 +48,8 @@ public class ResponseTimeItem implements MySqlMetricItem {
                     + "FROM performance_schema.events_statements_summary_global_by_event_name "
                     + "WHERE EVENT_NAME LIKE 'statement/%'";
 
-    private final CounterDeltaStore deltaStore;
-
-    public ResponseTimeItem(CounterDeltaStore deltaStore) {
-        this.deltaStore = deltaStore;
-    }
+    @Resource
+    private CounterDeltaStore deltaStore;
 
     @Override
     public String code() {

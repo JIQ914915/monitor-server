@@ -4,6 +4,7 @@ import com.lzzh.monitor.collector.postgresql.version.PgVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
 import com.lzzh.monitor.common.enums.CollectFrequency;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -40,11 +41,8 @@ public class PgTopSqlItem implements PgMetricItem {
     /** 毫秒 → 皮秒（与 metric_top_sql 的 MySQL 皮秒口径对齐）。 */
     private static final double MS_TO_PS = 1_000_000_000d;
 
-    private final PgTopSqlDeltaStore deltaStore;
-
-    public PgTopSqlItem(PgTopSqlDeltaStore deltaStore) {
-        this.deltaStore = deltaStore;
-    }
+    @Resource
+    private PgTopSqlDeltaStore deltaStore;
 
     @Override
     public String code() {

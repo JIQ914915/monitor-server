@@ -3,6 +3,7 @@ package com.lzzh.monitor.collector.alert;
 import com.lzzh.monitor.collector.config.AlertNotifyProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,7 +21,8 @@ class AlertStormGuardTest {
     void allowsUpToThresholdWithinWindow() {
         properties.getStorm().setThreshold(3);
         properties.getStorm().setWindowMinutes(5);
-        AlertStormGuard guard = new AlertStormGuard(properties);
+        AlertStormGuard guard = new AlertStormGuard();
+        ReflectionTestUtils.setField(guard, "properties", properties);
 
         for (int i = 0; i < 3; i++) {
             assertThat(guard.decide(1L).kind()).isEqualTo(AlertStormGuard.Kind.ALLOW);
@@ -32,7 +34,8 @@ class AlertStormGuardTest {
         properties.getStorm().setThreshold(2);
         properties.getStorm().setWindowMinutes(5);
         properties.getStorm().setDigestIntervalMinutes(10);
-        AlertStormGuard guard = new AlertStormGuard(properties);
+        AlertStormGuard guard = new AlertStormGuard();
+        ReflectionTestUtils.setField(guard, "properties", properties);
 
         assertThat(guard.decide(1L).kind()).isEqualTo(AlertStormGuard.Kind.ALLOW);
         assertThat(guard.decide(1L).kind()).isEqualTo(AlertStormGuard.Kind.ALLOW);
@@ -51,7 +54,8 @@ class AlertStormGuardTest {
     @Test
     void thresholdZeroOrNegativeDisablesGuardAlwaysAllow() {
         properties.getStorm().setThreshold(0);
-        AlertStormGuard guard = new AlertStormGuard(properties);
+        AlertStormGuard guard = new AlertStormGuard();
+        ReflectionTestUtils.setField(guard, "properties", properties);
         for (int i = 0; i < 50; i++) {
             assertThat(guard.decide(1L).kind()).isEqualTo(AlertStormGuard.Kind.ALLOW);
         }
@@ -60,14 +64,16 @@ class AlertStormGuardTest {
     @Test
     void nullInstanceIdAlwaysAllowed() {
         properties.getStorm().setThreshold(1);
-        AlertStormGuard guard = new AlertStormGuard(properties);
+        AlertStormGuard guard = new AlertStormGuard();
+        ReflectionTestUtils.setField(guard, "properties", properties);
         assertThat(guard.decide(null).kind()).isEqualTo(AlertStormGuard.Kind.ALLOW);
     }
 
     @Test
     void differentInstancesTrackedIndependently() {
         properties.getStorm().setThreshold(1);
-        AlertStormGuard guard = new AlertStormGuard(properties);
+        AlertStormGuard guard = new AlertStormGuard();
+        ReflectionTestUtils.setField(guard, "properties", properties);
 
         assertThat(guard.decide(1L).kind()).isEqualTo(AlertStormGuard.Kind.ALLOW);
         // 实例 1 已达阈值应进入摘要/抑制，但实例 2 是全新窗口，应仍被放行

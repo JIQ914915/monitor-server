@@ -12,6 +12,8 @@ import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.CollectResult;
 import com.lzzh.monitor.common.enums.CollectFrequency;
 import com.lzzh.monitor.common.enums.DbType;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,17 +35,19 @@ public class PostgreSqlCollector extends AbstractDatabaseCollector {
 
     private static final Logger log = LoggerFactory.getLogger(PostgreSqlCollector.class);
 
-    private final PgVersionResolver resolver;
+    @Resource
+    private PgVersionResolver resolver;
     /** 编码 → 采集项实现（启动时由 Spring 注入全部 PgMetricItem）。 */
-    private final Map<String, PgMetricItem> items;
+    private Map<String, PgMetricItem> items;
+    @Resource
+    private List<PgMetricItem> itemList;
     /** 目标库连接缓存（SPI 层，MySQL/PG 共用）：每实例复用一条长连接。 */
-    private final TargetConnectionCache connectionCache;
+    @Resource
+    private TargetConnectionCache connectionCache;
 
-    public PostgreSqlCollector(PgVersionResolver resolver, List<PgMetricItem> itemList,
-                               TargetConnectionCache connectionCache) {
-        this.resolver = resolver;
+    @PostConstruct
+    void init() {
         this.items = itemList.stream().collect(Collectors.toMap(PgMetricItem::code, Function.identity()));
-        this.connectionCache = connectionCache;
     }
 
     @Override

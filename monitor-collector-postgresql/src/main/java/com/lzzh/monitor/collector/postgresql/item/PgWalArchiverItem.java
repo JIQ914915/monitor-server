@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.postgresql.item;
 
 import com.lzzh.monitor.collector.postgresql.version.PgVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -24,11 +25,8 @@ public class PgWalArchiverItem implements PgMetricItem {
 
     public static final String CODE = "pg_wal";
 
-    private final PgCounterDeltaStore deltaStore;
-
-    public PgWalArchiverItem(PgCounterDeltaStore deltaStore) {
-        this.deltaStore = deltaStore;
-    }
+    @Resource
+    private PgCounterDeltaStore deltaStore;
 
     @Override
     public String code() {

@@ -3,6 +3,7 @@ package com.lzzh.monitor.collector.mysql.item;
 import com.lzzh.monitor.collector.mysql.version.MySqlVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.SlowSqlSamplePoint;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -54,14 +55,10 @@ public class SlowSqlSampleItem implements MySqlMetricItem {
     /** 在途完整 SQL 捕获单轮上限（长慢查询并发本就有限）。 */
     private static final int MAX_CAPTURES_PER_ROUND = 50;
 
-    private final SlowSqlSampleWatermarkStore watermarkStore;
-    private final FullSqlCaptureStore fullSqlCaptureStore;
-
-    public SlowSqlSampleItem(SlowSqlSampleWatermarkStore watermarkStore,
-                             FullSqlCaptureStore fullSqlCaptureStore) {
-        this.watermarkStore = watermarkStore;
-        this.fullSqlCaptureStore = fullSqlCaptureStore;
-    }
+    @Resource
+    private SlowSqlSampleWatermarkStore watermarkStore;
+    @Resource
+    private FullSqlCaptureStore fullSqlCaptureStore;
 
     @Override
     public String code() {

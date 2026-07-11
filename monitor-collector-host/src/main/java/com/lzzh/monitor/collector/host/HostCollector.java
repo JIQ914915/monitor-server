@@ -3,6 +3,8 @@ package com.lzzh.monitor.collector.host;
 import com.lzzh.monitor.collector.host.item.HostMetricItem;
 import com.lzzh.monitor.collector.host.prom.PromSnapshot;
 import com.lzzh.monitor.collector.host.prom.PromTextParser;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -21,16 +23,17 @@ public class HostCollector {
 
     private static final Logger log = LoggerFactory.getLogger(HostCollector.class);
 
-    private final NodeExporterClient client;
-    private final DeltaCache deltaCache;
-    private final List<HostMetricItem> items;
+    @Resource
+    private NodeExporterClient client;
+    @Resource
+    private DeltaCache deltaCache;
+    @Resource
+    private List<HostMetricItem> items;
     /** 全部采集项所需的 metric family 白名单（解析时其余行直接跳过）。 */
-    private final Set<String> allFamilies;
+    private Set<String> allFamilies;
 
-    public HostCollector(NodeExporterClient client, DeltaCache deltaCache, List<HostMetricItem> items) {
-        this.client = client;
-        this.deltaCache = deltaCache;
-        this.items = items;
+    @PostConstruct
+    void init() {
         Set<String> families = new HashSet<>();
         items.forEach(i -> families.addAll(i.families()));
         this.allFamilies = Set.copyOf(families);

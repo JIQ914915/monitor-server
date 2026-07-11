@@ -4,6 +4,7 @@ import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.mysql.version.MySqlVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
 import com.lzzh.monitor.common.enums.CollectFrequency;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -36,11 +37,8 @@ public class TopSqlItem implements MySqlMetricItem {
     /** 查询级超时（秒）：P_S digest 表可能较大，超时由数据库侧 KILL QUERY 处理。 */
     private static final int QUERY_TIMEOUT_SECONDS = 15;
 
-    private final TopSqlDeltaStore deltaStore;
-
-    public TopSqlItem(TopSqlDeltaStore deltaStore) {
-        this.deltaStore = deltaStore;
-    }
+    @Resource
+    private TopSqlDeltaStore deltaStore;
 
     @Override
     public String code() {

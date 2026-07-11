@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.mysql.item;
 
 import com.lzzh.monitor.collector.mysql.version.MySqlVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
 import java.sql.Connection;
@@ -29,11 +30,8 @@ public class ThroughputItem implements MySqlMetricItem {
 
     private static final Set<String> WANTED = Set.of("Questions", "Com_commit", "Com_rollback", "Uptime");
 
-    private final CounterDeltaStore deltaStore;
-
-    public ThroughputItem(CounterDeltaStore deltaStore) {
-        this.deltaStore = deltaStore;
-    }
+    @Resource
+    private CounterDeltaStore deltaStore;
 
     @Override
     public String code() {
