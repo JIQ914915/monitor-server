@@ -41,7 +41,7 @@ public class InstanceRuntimeMetadataService implements ApplicationRunner {
     private DatabaseTypeMapper databaseTypeMapper;
     @Resource
     private DatabaseVersionMapper databaseVersionMapper;
-    @Resource
+    @Resource(name = "stringRedisTemplate")
     private StringRedisTemplate redisTemplate;
 
     private final AtomicLong redisUnavailableUntil = new AtomicLong(0L);
