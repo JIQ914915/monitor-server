@@ -95,12 +95,10 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
     }
 
     @Override
-    public DrilldownProfileVo match(String metricCode) {
-        return match(metricCode, null);
-    }
-
-    @Override
     public DrilldownProfileVo match(String metricCode, String dbType) {
+        if (!StringUtils.hasText(dbType)) {
+            return null;
+        }
         List<AlertDrilldownProfile> enabled = profileMapper.selectList(
                 new LambdaQueryWrapper<AlertDrilldownProfile>()
                         .eq(AlertDrilldownProfile::getEnabled, true)
@@ -109,11 +107,9 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
         if (enabled.isEmpty()) {
             return null;
         }
-        if (StringUtils.hasText(dbType)) {
-            enabled = enabled.stream()
-                    .filter(p -> dbType.equalsIgnoreCase(p.getDbType()))
-                    .toList();
-        }
+        enabled = enabled.stream()
+                .filter(p -> dbType.equalsIgnoreCase(p.getDbType()))
+                .toList();
         if (enabled.isEmpty()) {
             return null;
         }
@@ -153,7 +149,7 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
     private static void applyRequest(AlertDrilldownProfile p, DrilldownProfileSaveRequest req) {
         p.setProfileCode(req.getProfileCode().trim());
         p.setProfileLabel(req.getProfileLabel().trim());
-        p.setDbType(StringUtils.hasText(req.getDbType()) ? req.getDbType() : "mysql");
+        p.setDbType(req.getDbType().trim().toLowerCase());
         p.setMatchRules(req.getMatchRules() == null ? List.of() : req.getMatchRules());
         p.setRelatedMetrics(req.getRelatedMetrics() == null ? List.of() : req.getRelatedMetrics());
         p.setCauses(req.getCauses() == null ? List.of() : req.getCauses());

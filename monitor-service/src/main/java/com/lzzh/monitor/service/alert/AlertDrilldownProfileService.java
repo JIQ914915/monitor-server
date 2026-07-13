@@ -7,8 +7,8 @@ import java.util.List;
 
 /**
  * 告警下钻画像管理与匹配（§11.7 事件下钻）。
- * <p>画像按告警触发指标编码匹配（exact 优先于 prefix、prefix 长者优先），
- * 均未命中时回退兜底画像（match_rules 为空的 generic）。
+ * <p>画像按数据库类型与告警触发指标编码匹配（exact 优先于 prefix、prefix 长者优先），
+ * 均未命中时仅回退当前数据库类型的兜底画像（match_rules 为空的 generic）。
  */
 public interface AlertDrilldownProfileService {
 
@@ -24,13 +24,6 @@ public interface AlertDrilldownProfileService {
     /** 启停画像。 */
     void toggle(Long id, boolean enabled);
 
-    /**
-     * 按触发指标编码匹配启用中的画像；未命中或 metricCode 为空时回退兜底画像。
-     *
-     * @return 命中的画像；画像库为空时返回 null（前端自行降级）
-     */
-    DrilldownProfileVo match(String metricCode);
-
-    /** 按实例数据库类型隔离画像，避免同一 host.* 指标跨 MySQL/PostgreSQL 误匹配。 */
+    /** 按实例数据库类型隔离画像；类型为空时返回 null，禁止跨库匹配。 */
     DrilldownProfileVo match(String metricCode, String dbType);
 }

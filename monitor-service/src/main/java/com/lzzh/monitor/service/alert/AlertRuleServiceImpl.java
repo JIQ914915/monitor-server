@@ -125,7 +125,10 @@ public class AlertRuleServiceImpl implements AlertRuleService {
 
         // 解析实例的 dbTypeId / dbVersionId（用于过滤内置规则）
         DbInstance inst = dbInstanceMapper.selectById(instanceId);
-        Long instDbTypeId    = inst != null ? inst.getDbTypeId()    : null;
+        if (inst == null || inst.getDbTypeId() == null) {
+            throw new BusinessException("实例未配置数据库类型: " + instanceId);
+        }
+        Long instDbTypeId    = inst.getDbTypeId();
         Long instDbVersionId = inst != null ? inst.getDbVersionId() : null;
         Long instHostId      = inst != null ? inst.getHostId()      : null;
 
@@ -792,15 +795,16 @@ public class AlertRuleServiceImpl implements AlertRuleService {
      * 查询适用于指定实例类型 + 版本的内置规则。
      * <p>过滤逻辑：
      * <ul>
-     *   <li>dbTypeId 匹配（null 则不过滤类型）</li>
+     *   <li>dbTypeId 必填并严格匹配；缺失类型时不返回任何内置规则</li>
      *   <li>dbVersionIds 为 null/空 → 适用所有版本；否则包含实例的 dbVersionId</li>
      * </ul>
      */
     private List<AlertRule> queryBuiltins(Long instDbTypeId, Long instDbVersionId) {
-        LambdaQueryWrapper<AlertRule> w = new LambdaQueryWrapper<>();
-        if (instDbTypeId != null) {
-            w.eq(AlertRule::getDbTypeId, instDbTypeId);
+        if (instDbTypeId == null) {
+            return List.of();
         }
+        LambdaQueryWrapper<AlertRule> w = new LambdaQueryWrapper<>();
+        w.eq(AlertRule::getDbTypeId, instDbTypeId);
         w.orderByAsc(AlertRule::getRuleLevel);
         List<AlertRule> rules = alertRuleMapper.selectList(w);
         rules.forEach(r -> r.setRuleType("builtin"));

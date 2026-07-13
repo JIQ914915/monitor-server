@@ -23,7 +23,8 @@ public class DrilldownProfileSaveRequest {
     @NotBlank(message = "画像名称不能为空")
     private String profileLabel;
 
-    @Schema(description = "适用数据库类型", example = "mysql")
+    @Schema(description = "适用数据库类型", example = "mysql", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "适用数据库类型不能为空")
     private String dbType;
 
     @Schema(description = "匹配规则：[{matchType:exact|prefix, pattern}]")

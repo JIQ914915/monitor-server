@@ -11,6 +11,7 @@ import com.lzzh.monitor.api.response.ReportScheduleVo;
 import com.lzzh.monitor.api.response.ReportVo;
 import com.lzzh.monitor.api.response.MetricTrendVo;
 import com.lzzh.monitor.common.constant.Constants;
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.common.result.PageResult;
 import com.lzzh.monitor.dao.entity.AlertEvent;
@@ -150,18 +151,27 @@ public class ReportServiceImpl implements ReportService {
     @Resource
     private DatabaseTypeMapper databaseTypeMapper;
 
-    /** dbTypeId → 是否 PostgreSQL 的缓存（database_type 行数极少且编码不变更）。 */
-    private final Map<Long, Boolean> pgTypeCache = new ConcurrentHashMap<>();
+    /** dbTypeId → DbType 缓存（database_type 行数极少且编码不变更）。 */
+    private final Map<Long, DbType> dbTypeCache = new ConcurrentHashMap<>();
 
-    /** 实例是否为 PostgreSQL（决定报告段落使用 pg.* 还是 mysql.* 指标口径）。 */
-    private boolean isPostgres(DbInstance ins) {
+    /** 解析实例数据库类型；缺失或未支持类型直接失败，禁止静默按 MySQL 处理。 */
+    private DbType resolveDbType(DbInstance ins) {
         if (ins == null || ins.getDbTypeId() == null) {
-            return false;
+            throw new BusinessException("实例未配置数据库类型");
         }
-        return pgTypeCache.computeIfAbsent(ins.getDbTypeId(), id -> {
-            DatabaseType t = databaseTypeMapper.selectById(id);
-            return t != null && "POSTGRESQL".equalsIgnoreCase(t.getCode());
+        return dbTypeCache.computeIfAbsent(ins.getDbTypeId(), id -> {
+            DatabaseType typeRow = databaseTypeMapper.selectById(id);
+            DbType type = DbType.of(typeRow == null ? null : typeRow.getCode());
+            if (type != DbType.MYSQL && type != DbType.POSTGRESQL) {
+                throw new BusinessException("报告暂不支持数据库类型: "
+                        + (typeRow == null ? "未配置" : typeRow.getCode()));
+            }
+            return type;
         });
+    }
+
+    private boolean isPostgres(DbInstance ins) {
+        return resolveDbType(ins) == DbType.POSTGRESQL;
     }
 
     // ── 归档查询 ─────────────────────────────────────────────────────────────
@@ -270,6 +280,14 @@ public class ReportServiceImpl implements ReportService {
                 sections = buildAlertSections(instances, from, to);
             }
             case "security" -> {
+                List<String> unsupported = instances.stream()
+                        .filter(ins -> resolveDbType(ins) != DbType.MYSQL)
+                        .map(DbInstance::getName)
+                        .toList();
+                if (!unsupported.isEmpty()) {
+                    throw new BusinessException("安全专项报告暂仅支持 MySQL 实例，已选择非 MySQL 实例: "
+                            + String.join("、", unsupported));
+                }
                 prefix = "SEC";
                 title = "安全专项报告";
                 sections = buildSecuritySections(instances, from, to);

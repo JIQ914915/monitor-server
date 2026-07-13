@@ -603,16 +603,22 @@ public class SlowSqlQueryServiceImpl implements SlowSqlQueryService {
     private boolean isTopSqlSupported(Long instanceId) {
         try {
             InstanceVo instance = instanceService.getById(instanceId);
-            if (instance != null && "PostgreSQL".equalsIgnoreCase(instance.getDbType())) {
+            if (instance == null || instance.getDbType() == null || instance.getDbType().isBlank()) {
+                return false;
+            }
+            if ("PostgreSQL".equalsIgnoreCase(instance.getDbType())) {
                 Double ext = paramQueryDao.latestNumericParams(instanceId,
                         List.of(PG_STAT_STATEMENTS_METRIC)).get(PG_STAT_STATEMENTS_METRIC);
                 return ext != null && ext >= 2;
             }
-            String version = instance == null ? null : instance.getDbVersion();
+            if (!"MySQL".equalsIgnoreCase(instance.getDbType())) {
+                return false;
+            }
+            String version = instance.getDbVersion();
             return version == null || !version.startsWith("5.6");
         } catch (Exception e) {
-            // 实例查询异常不影响主数据返回，按支持处理
-            return true;
+            // 类型或实例信息查询失败时按不支持处理，禁止静默套用 MySQL 能力。
+            return false;
         }
     }
 
