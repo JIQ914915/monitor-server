@@ -248,7 +248,7 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
     }
 
     private CollectLog latestLog(Long instanceId, String frequency) {
-        List<CollectLog> logs = collectLogMapper.selectRecent(instanceId, frequency, 1);
+        List<CollectLog> logs = collectLogMapper.selectRecent(instanceId, null, frequency, 0, 1);
         return logs.isEmpty() ? null : logs.get(0);
     }
 

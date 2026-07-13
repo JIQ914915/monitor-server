@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.mysql.item;
 
 import org.springframework.stereotype.Component;
 
+import java.math.BigInteger;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -53,9 +54,9 @@ public class TopSqlDeltaStore {
      * @return 差值结果；首次采样或检测到回绕时返回 null（调用方跳过写入）
      */
     public Delta compute(long instanceId, String schemaName, String digest,
-                         long countStar, long sumTimerWait, long rowsExamined, long rowsSent,
-                         long lockTime, long sortRows, long noIndexUsed,
-                         long tmpTables, long tmpDiskTables) {
+                         BigInteger countStar, BigInteger sumTimerWait, BigInteger rowsExamined, BigInteger rowsSent,
+                         BigInteger lockTime, BigInteger sortRows, BigInteger noIndexUsed,
+                         BigInteger tmpTables, BigInteger tmpDiskTables) {
         pruneStaleIfDue();
         String key = instanceId + ":" + (schemaName == null ? "" : schemaName) + ":" + digest;
         long now = System.currentTimeMillis();
@@ -68,34 +69,51 @@ public class TopSqlDeltaStore {
         }
         // 计数器回绕（实例重启 / P_S truncate）：任一主累积列变小都视为基线失效，
         // 用本次快照重建基线并跳过本条，避免产生负增量
-        if (countStar < prev.countStar || sumTimerWait < prev.sumTimerWait
-                || rowsExamined < prev.rowsExamined || rowsSent < prev.rowsSent) {
+        if (countStar.compareTo(prev.countStar) < 0 || sumTimerWait.compareTo(prev.sumTimerWait) < 0
+                || rowsExamined.compareTo(prev.rowsExamined) < 0 || rowsSent.compareTo(prev.rowsSent) < 0) {
             return null;
         }
 
-        long dCount = countStar - prev.countStar;
-        long dTimerWait = sumTimerWait - prev.sumTimerWait;
-        long dRowsExamined = rowsExamined - prev.rowsExamined;
-        long dRowsSent = rowsSent - prev.rowsSent;
+        BigInteger dCount = countStar.subtract(prev.countStar);
+        BigInteger dTimerWait = sumTimerWait.subtract(prev.sumTimerWait);
+        BigInteger dRowsExamined = rowsExamined.subtract(prev.rowsExamined);
+        BigInteger dRowsSent = rowsSent.subtract(prev.rowsSent);
 
-        if (dCount == 0) {
+        if (dCount.signum() == 0) {
             return null;
         }
 
         // 平均耗时（微秒）：皮秒 → 微秒 /1_000_000，再 / 执行次数
-        long avgTimerWaitUs = dTimerWait / 1_000_000 / dCount;
+        long avgTimerWaitUs = toSignedLongSaturated(dTimerWait
+                .divide(BigInteger.valueOf(1_000_000L))
+                .divide(dCount));
 
-        return new Delta(dCount, dTimerWait, avgTimerWaitUs, dRowsExamined, dRowsSent,
-                nonNegative(lockTime - prev.lockTime),
-                nonNegative(sortRows - prev.sortRows),
-                nonNegative(noIndexUsed - prev.noIndexUsed),
-                nonNegative(tmpTables - prev.tmpTables),
-                nonNegative(tmpDiskTables - prev.tmpDiskTables));
+        return new Delta(toSignedLongSaturated(dCount), toSignedLongSaturated(dTimerWait), avgTimerWaitUs,
+                toSignedLongSaturated(dRowsExamined), toSignedLongSaturated(dRowsSent),
+                toSignedLongSaturated(nonNegative(lockTime.subtract(prev.lockTime))),
+                toSignedLongSaturated(nonNegative(sortRows.subtract(prev.sortRows))),
+                toSignedLongSaturated(nonNegative(noIndexUsed.subtract(prev.noIndexUsed))),
+                toSignedLongSaturated(nonNegative(tmpTables.subtract(prev.tmpTables))),
+                toSignedLongSaturated(nonNegative(tmpDiskTables.subtract(prev.tmpDiskTables))));
     }
 
     /** 诊断类累积列各自截断为非负：局部回绕不影响主 delta 的有效性。 */
-    private static long nonNegative(long v) {
-        return Math.max(0, v);
+    private static BigInteger nonNegative(BigInteger v) {
+        return v.signum() < 0 ? BigInteger.ZERO : v;
+    }
+
+    /**
+     * metric_top_sql 现有皮秒列为 signed BIGINT。累计快照或极端周期增量超出范围时饱和，
+     * 避免转换回绕为负数；正常周期的差值仍保持精确值。
+     */
+    static long toSignedLongSaturated(BigInteger value) {
+        if (value.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
+            return Long.MAX_VALUE;
+        }
+        if (value.compareTo(BigInteger.valueOf(Long.MIN_VALUE)) < 0) {
+            return Long.MIN_VALUE;
+        }
+        return value.longValue();
     }
 
     /** 清除指定实例的全部缓存（实例删除/重置场景）。 */
@@ -121,9 +139,9 @@ public class TopSqlDeltaStore {
 
     // ── 数据结构 ─────────────────────────────────────────────────────────────
 
-    private record Snapshot(long countStar, long sumTimerWait, long rowsExamined, long rowsSent,
-                            long lockTime, long sortRows, long noIndexUsed,
-                            long tmpTables, long tmpDiskTables,
+    private record Snapshot(BigInteger countStar, BigInteger sumTimerWait, BigInteger rowsExamined, BigInteger rowsSent,
+                            BigInteger lockTime, BigInteger sortRows, BigInteger noIndexUsed,
+                            BigInteger tmpTables, BigInteger tmpDiskTables,
                             long lastSeenMillis) {
     }
 

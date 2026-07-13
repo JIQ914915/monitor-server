@@ -1,32 +1,158 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lzzh.monitor.dao.mapper.CollectLogMapper">
+
+    <sql id="taskRowsCte">
+        WITH task_candidates AS (
+            SELECT i.id AS instance_id, NULL::BIGINT AS host_id, f.frequency
+            FROM db_instance i
+            CROSS JOIN (VALUES ('1m'), ('1h'), ('1d')) AS f(frequency)
+            UNION ALL
+            SELECT 0::BIGINT AS instance_id, h.id AS host_id, '1m' AS frequency
+            FROM host h
+        ), task_rows AS (
+            SELECT CASE WHEN c.host_id IS NULL THEN 'instance' ELSE 'host' END AS "targetType",
+                   c.instance_id AS "instanceId",
+                   c.host_id AS "hostId",
+                   CASE WHEN c.host_id IS NULL THEN i.name ELSE h.name END AS "instanceName",
+                   CASE WHEN c.host_id IS NULL THEN dt.label ELSE '主机' END AS "dbType",
+                   CASE WHEN c.host_id IS NULL THEN COALESCE(dv.version_name, dv.version_code) ELSE h.os_type END AS "dbVersion",
+                   CASE WHEN c.host_id IS NULL THEN i.host ELSE h.ip END AS "host",
+                   CASE WHEN c.host_id IS NULL THEN i.port ELSE h.exporter_port END AS "port",
+                   c.frequency AS "frequency",
+                   CASE WHEN c.host_id IS NULL THEN i.status ELSE h.status END AS "targetStatus",
+                   CASE
+                       WHEN lower(CASE WHEN c.host_id IS NULL THEN i.status ELSE h.status END) = 'paused'
+                           THEN 'stopped'
+                       WHEN l.success = FALSE OR (c.host_id IS NOT NULL AND lower(h.status) = 'abnormal')
+                           THEN 'error'
+                       ELSE 'running'
+                   END AS "status",
+                   l.collect_time AS "lastCollectTime",
+                   l.duration_ms AS "lastDurationMs",
+                   l.metric_count AS "lastMetricCount",
+                   l.success AS "lastSuccess",
+                   l.error_message AS "lastErrorMessage"
+            FROM task_candidates c
+            LEFT JOIN db_instance i ON c.host_id IS NULL AND i.id = c.instance_id
+            LEFT JOIN database_type dt ON dt.id = i.db_type_id
+            LEFT JOIN database_version dv ON dv.id = i.db_version_id
+            LEFT JOIN host h ON c.host_id IS NOT NULL AND h.id = c.host_id
+            JOIN LATERAL (
+                SELECT cl.collect_time, cl.duration_ms, cl.metric_count, cl.success, cl.error_message
+                FROM collect_log cl
+                WHERE cl.instance_id = c.instance_id
+                  AND cl.host_id IS NOT DISTINCT FROM c.host_id
+                  AND cl.frequency = c.frequency
+                ORDER BY cl.collect_time DESC
+                LIMIT 1
+            ) l ON TRUE
+        )
+    </sql>
+    <sql id="taskFilters">
+        <if test="keyword != null and keyword != ''">
+            AND (lower(t."instanceName") LIKE '%' || lower(#{keyword}) || '%'
+              OR lower(t."host") LIKE '%' || lower(#{keyword}) || '%')
+        </if>
+        <if test="dbType != null and dbType != ''">
+            AND (lower(t."dbType") = lower(#{dbType}) OR lower(t."targetType") = lower(#{dbType}))
+        </if>
+        <if test="frequency != null and frequency != ''">
+            AND t."frequency" = #{frequency}
+        </if>
+        <if test="status != null and status != ''">
+            AND t."status" = #{status}
+        </if>
+    </sql>
+
     <select id="selectLatestPerTask" resultType="map">
-        SELECT DISTINCT ON (l.instance_id, l.frequency)
-            l.instance_id,
-            l.frequency,
-            l.collect_time   AS last_collect_time,
-            l.duration_ms    AS last_duration_ms,
-            l.metric_count   AS last_metric_count,
-            l.success        AS last_success,
-            l.error_message  AS last_error_message,
-            (SELECT COUNT(*) FROM collect_log s
-             WHERE s.instance_id = l.instance_id AND s.frequency = l.frequency
-               AND s.collect_time &gt;= now() - INTERVAL '24 hours') AS total_24h,
-            (SELECT COUNT(*) FROM collect_log s
-             WHERE s.instance_id = l.instance_id AND s.frequency = l.frequency
-               AND s.collect_time &gt;= now() - INTERVAL '24 hours'
-               AND s.success = TRUE) AS success_24h
-        FROM collect_log l
-        ORDER BY l.instance_id, l.frequency, l.collect_time DESC
+        <include refid="taskRowsCte" />
+        SELECT t."instanceId" AS instance_id,
+               t."hostId" AS host_id,
+               t."frequency" AS frequency,
+               t."lastCollectTime" AS last_collect_time,
+               t."lastSuccess" AS last_success,
+               t."lastErrorMessage" AS last_error_message,
+               (SELECT COUNT(*) FROM collect_log s
+                WHERE s.instance_id = t."instanceId"
+                  AND s.host_id IS NOT DISTINCT FROM t."hostId"
+                  AND s.frequency = t."frequency"
+                  AND s.collect_time &gt;= now() - INTERVAL '24 hours') AS total_24h,
+               (SELECT COUNT(*) FROM collect_log s
+                WHERE s.instance_id = t."instanceId"
+                  AND s.host_id IS NOT DISTINCT FROM t."hostId"
+                  AND s.frequency = t."frequency"
+                  AND s.collect_time &gt;= now() - INTERVAL '24 hours'
+                  AND s.success = TRUE) AS success_24h
+        FROM task_rows t
+        ORDER BY t."instanceId", t."hostId", t."frequency"
+    </select>
+    <select id="selectTaskPage" resultType="map">
+        <include refid="taskRowsCte" />
+        SELECT t.*,
+               (SELECT COUNT(*) FROM collect_log s
+                WHERE s.instance_id = t."instanceId"
+                  AND s.host_id IS NOT DISTINCT FROM t."hostId"
+                  AND s.frequency = t."frequency"
+                  AND s.collect_time &gt;= now() - INTERVAL '24 hours') AS "total24h",
+               (SELECT COUNT(*) FROM collect_log s
+                WHERE s.instance_id = t."instanceId"
+                  AND s.host_id IS NOT DISTINCT FROM t."hostId"
+                  AND s.frequency = t."frequency"
+                  AND s.collect_time &gt;= now() - INTERVAL '24 hours'
+                  AND s.success = TRUE) AS "success24h"
+        FROM task_rows t
+        WHERE 1 = 1
+        <include refid="taskFilters" />
+        ORDER BY t."lastCollectTime" DESC, t."targetType", t."instanceId", t."hostId"
+        LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <select id="countTasks" resultType="long">
+        <include refid="taskRowsCte" />
+        SELECT COUNT(*)
+        FROM task_rows t
+        WHERE 1 = 1
+        <include refid="taskFilters" />
+    </select>
+
+    <select id="selectTaskStats" resultType="map">
+        <include refid="taskRowsCte" />
+        SELECT COUNT(*) AS "total",
+               COUNT(*) FILTER (WHERE t."frequency" = '1m') AS "total1m",
+               COUNT(*) FILTER (WHERE t."frequency" = '1h') AS "total1h",
+               COUNT(*) FILTER (WHERE t."frequency" = '1d') AS "total1d",
+               COUNT(*) FILTER (WHERE t."status" = 'running') AS "running",
+               COUNT(*) FILTER (WHERE t."status" = 'stopped') AS "stopped",
+               COUNT(*) FILTER (WHERE t."status" = 'error') AS "error"
+        FROM task_rows t
+        WHERE 1 = 1
+        <include refid="taskFilters" />
+    </select>
+
+    <sql id="historyTargetFilter">
+        WHERE frequency = #{frequency}
+        <choose>
+            <when test="hostId != null">
+                AND instance_id = 0 AND host_id = #{hostId}
+            </when>
+            <otherwise>
+                AND instance_id = #{instanceId} AND host_id IS NULL
+            </otherwise>
+        </choose>
+    </sql>
+
     <select id="selectRecent" resultType="com.lzzh.monitor.dao.entity.CollectLog">
-        SELECT id, instance_id, frequency, collect_time, duration_ms,
+        SELECT id, instance_id, host_id, frequency, collect_time, duration_ms,
                metric_count, text_count, object_count, success, error_message
         FROM collect_log
-        WHERE instance_id = #{instanceId} AND frequency = #{frequency}
+        <include refid="historyTargetFilter" />
         ORDER BY collect_time DESC
-        LIMIT #{limit}
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countRecent" resultType="long">
+        SELECT COUNT(*) FROM collect_log
+        <include refid="historyTargetFilter" />
     </select>
 </mapper>

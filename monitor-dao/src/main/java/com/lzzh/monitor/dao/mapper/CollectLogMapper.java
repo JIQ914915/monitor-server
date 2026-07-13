@@ -12,21 +12,42 @@ import java.util.Map;
 @Mapper
 public interface CollectLogMapper extends BaseMapper<CollectLog> {
 
-    /**
-     * 查询各实例各频率的最近一条采集记录（用于任务列表页展示最新状态）。
-     * 通过 DISTINCT ON (instance_id, frequency) + ORDER BY collect_time DESC 取最新行。
-     */
+    /** 报告中心内部使用：查询全部任务的最新采集质量，不用于页面列表。 */
     List<Map<String, Object>> selectLatestPerTask();
+    /** 按查询条件分页获取数据库实例/主机采集任务。 */
+    List<Map<String, Object>> selectTaskPage(
+            @Param("keyword") String keyword,
+            @Param("dbType") String dbType,
+            @Param("frequency") String frequency,
+            @Param("status") String status,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
 
-    /**
-     * 查询单实例单频率的近期日志（倒序）。
-     *
-     * @param instanceId 实例 ID
-     * @param frequency  频率（1m/1h/1d）
-     * @param limit      最多返回条数
-     */
+    /** 统计符合条件的采集任务总数。 */
+    long countTasks(
+            @Param("keyword") String keyword,
+            @Param("dbType") String dbType,
+            @Param("frequency") String frequency,
+            @Param("status") String status);
+
+    /** 统计符合条件的任务频率及状态分布。 */
+    Map<String, Object> selectTaskStats(
+            @Param("keyword") String keyword,
+            @Param("dbType") String dbType,
+            @Param("frequency") String frequency,
+            @Param("status") String status);
+
+    /** 按实例或主机分页查询采集历史日志。 */
     List<CollectLog> selectRecent(
             @Param("instanceId") Long instanceId,
+            @Param("hostId") Long hostId,
             @Param("frequency") String frequency,
+            @Param("offset") int offset,
             @Param("limit") int limit);
+
+    /** 统计实例或主机的采集历史日志总数。 */
+    long countRecent(
+            @Param("instanceId") Long instanceId,
+            @Param("hostId") Long hostId,
+            @Param("frequency") String frequency);
 }

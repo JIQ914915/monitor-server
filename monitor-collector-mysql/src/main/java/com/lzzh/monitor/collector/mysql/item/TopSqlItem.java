@@ -7,6 +7,8 @@ import com.lzzh.monitor.common.enums.CollectFrequency;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -74,15 +76,17 @@ public class TopSqlItem implements MySqlMetricItem {
                     String schemaName = rs.getString("SCHEMA_NAME");
                     String digest     = rs.getString("DIGEST");
                     String digestText = rs.getString("DIGEST_TEXT");
-                    long countStar    = rs.getLong("COUNT_STAR");
-                    long sumTimer     = rs.getLong("SUM_TIMER_WAIT");
-                    long rowsExam     = rs.getLong("SUM_ROWS_EXAMINED");
-                    long rowsSent     = rs.getLong("SUM_ROWS_SENT");
-                    long lockTime     = rs.getLong("SUM_LOCK_TIME");
-                    long sortRows     = rs.getLong("SUM_SORT_ROWS");
-                    long noIndexUsed  = rs.getLong("SUM_NO_INDEX_USED");
-                    long tmpTables    = rs.getLong("SUM_CREATED_TMP_TABLES");
-                    long tmpDiskTbls  = rs.getLong("SUM_CREATED_TMP_DISK_TABLES");
+                    BigInteger countStar = unsignedCounter(rs, "COUNT_STAR");
+                    // performance_schema 的计时器是无符号 BIGINT，累计值可超过 Java Long。
+                    // 使用 BigInteger 保留累计快照，差值计算完成后才收敛到落库字段的 signed BIGINT。
+                    BigInteger sumTimer = unsignedCounter(rs, "SUM_TIMER_WAIT");
+                    BigInteger rowsExam = unsignedCounter(rs, "SUM_ROWS_EXAMINED");
+                    BigInteger rowsSent = unsignedCounter(rs, "SUM_ROWS_SENT");
+                    BigInteger lockTime = unsignedCounter(rs, "SUM_LOCK_TIME");
+                    BigInteger sortRows = unsignedCounter(rs, "SUM_SORT_ROWS");
+                    BigInteger noIndexUsed = unsignedCounter(rs, "SUM_NO_INDEX_USED");
+                    BigInteger tmpTables = unsignedCounter(rs, "SUM_CREATED_TMP_TABLES");
+                    BigInteger tmpDiskTbls = unsignedCounter(rs, "SUM_CREATED_TMP_DISK_TABLES");
 
                     // 计算本周期差值（首次 / 回绕时返回 null）
                     TopSqlDeltaStore.Delta delta =
@@ -92,19 +96,26 @@ public class TopSqlItem implements MySqlMetricItem {
 
                     TopSqlPoint point = (delta != null)
                             ? new TopSqlPoint(schemaName, digest, digestText,
-                                    countStar, sumTimer, rowsExam, rowsSent,
+                                    TopSqlDeltaStore.toSignedLongSaturated(countStar), TopSqlDeltaStore.toSignedLongSaturated(sumTimer),
+                                    TopSqlDeltaStore.toSignedLongSaturated(rowsExam), TopSqlDeltaStore.toSignedLongSaturated(rowsSent),
                                     delta.deltaCount(), delta.deltaTimerWait(), delta.avgTimerWaitUs(),
                                     delta.deltaRowsExamined(), delta.deltaRowsSent(),
                                     delta.deltaLockTime(), delta.deltaSortRows(), delta.deltaNoIndexUsed(),
                                     delta.deltaTmpTables(), delta.deltaTmpDiskTables(),
                                     ts)
                             : new TopSqlPoint(schemaName, digest, digestText,
-                                    countStar, sumTimer, rowsExam, rowsSent, ts);
+                                    TopSqlDeltaStore.toSignedLongSaturated(countStar), TopSqlDeltaStore.toSignedLongSaturated(sumTimer),
+                                    TopSqlDeltaStore.toSignedLongSaturated(rowsExam), TopSqlDeltaStore.toSignedLongSaturated(rowsSent), ts);
 
                     // 首次采样时 hasDelta()=false，sink 仍接收（写入层判断是否落库）
                     sink.addTopSql(point);
                 }
             }
         }
+    }
+
+    private static BigInteger unsignedCounter(ResultSet rs, String column) throws SQLException {
+        BigDecimal value = rs.getBigDecimal(column);
+        return value == null ? BigInteger.ZERO : value.toBigInteger();
     }
 }

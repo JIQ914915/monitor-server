@@ -2,22 +2,26 @@ package com.lzzh.monitor.api.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-/** 采集历史日志查询请求。 */
+/** 采集历史日志分页查询请求。 */
 @Data
-@Schema(description = "采集历史日志查询请求")
+@Schema(description = "采集历史日志分页查询请求")
 public class CollectLogQueryRequest {
 
-    @NotNull
-    @Schema(description = "实例 ID")
+    @Schema(description = "实例 ID；查询数据库实例采集日志时传入")
     private Long instanceId;
+
+    @Schema(description = "主机 ID；查询主机采集日志时传入")
+    private Long hostId;
 
     @NotBlank
     @Schema(description = "采集频率：1m/1h/1d")
     private String frequency;
 
-    @Schema(description = "最多返回条数（默认 50，最大 200）")
-    private Integer limit;
+    @Schema(description = "页码，从 1 开始", example = "1")
+    private Integer pageNum;
+
+    @Schema(description = "每页条数，最大 100", example = "20")
+    private Integer pageSize;
 }
