@@ -1,5 +1,6 @@
 package com.lzzh.monitor.service.alert;
 
+import com.lzzh.monitor.common.enums.DbType;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.Statements;
@@ -36,10 +37,19 @@ public final class SqlSafetyValidator {
                     + "|\\bdbms_(lock|session)\\s*\\.\\s*sleep\\b",
             Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern MYSQL_ONLY_FEATURES = Pattern.compile(
+            "\\x60[^\\x60]+\\x60|\\bsql_calc_found_rows\\b|\\bstraight_join\\b"
+                    + "|\\b(use|force|ignore)\\s+index\\b|\\block\\s+in\\s+share\\s+mode\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern POSTGRESQL_ONLY_FEATURES = Pattern.compile(
+            "::\\s*[a-zA-Z_]|\\bilike\\b|\\bsimilar\\s+to\\b|\\bdistinct\\s+on\\s*\\(",
+            Pattern.CASE_INSENSITIVE);
+
     private SqlSafetyValidator() {
     }
 
-    public static void validateQueryOnly(String sql) {
+    public static void validateQueryOnly(String sql, DbType dbType) {
         if (!StringUtils.hasText(sql)) {
             throw new IllegalArgumentException("自定义 SQL 不能为空");
         }
@@ -50,6 +60,7 @@ public final class SqlSafetyValidator {
         if (DANGEROUS_QUERY_FEATURES.matcher(normalized).find()) {
             throw new IllegalArgumentException("自定义 SQL 包含高风险查询特性");
         }
+        validateDialect(normalized, dbType);
         Statements statements;
         try {
             statements = CCJSqlParserUtil.parseStatements(normalized);
@@ -66,6 +77,25 @@ public final class SqlSafetyValidator {
         String firstToken = firstToken(normalized);
         if (!"select".equals(firstToken) && !"with".equals(firstToken)) {
             throw new IllegalArgumentException("自定义 SQL 仅允许 SELECT/WITH 查询");
+        }
+    }
+
+    private static void validateDialect(String sql, DbType dbType) {
+        if (dbType == null) {
+            throw new IllegalArgumentException("实例数据库类型未识别，拒绝校验自定义 SQL");
+        }
+        switch (dbType) {
+            case MYSQL -> {
+                if (POSTGRESQL_ONLY_FEATURES.matcher(sql).find()) {
+                    throw new IllegalArgumentException("MySQL 规则不能使用 PostgreSQL 专属语法");
+                }
+            }
+            case POSTGRESQL -> {
+                if (MYSQL_ONLY_FEATURES.matcher(sql).find()) {
+                    throw new IllegalArgumentException("PostgreSQL 规则不能使用 MySQL 专属语法");
+                }
+            }
+            default -> throw new IllegalArgumentException("暂不支持该数据库类型的自定义 SQL: " + dbType);
         }
     }
 

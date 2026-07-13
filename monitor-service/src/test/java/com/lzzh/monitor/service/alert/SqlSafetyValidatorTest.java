@@ -1,5 +1,6 @@
 package com.lzzh.monitor.service.alert;
 
+import com.lzzh.monitor.common.enums.DbType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -10,62 +11,66 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 /** {@link SqlSafetyValidator} 单元测试：自定义告警 SQL 的最终安全防线，需要重点覆盖。 */
 class SqlSafetyValidatorTest {
 
+    private static void validateMysql(String sql) {
+        SqlSafetyValidator.validateQueryOnly(sql, DbType.MYSQL);
+    }
+
     @Test
     void allowsPlainSelect() {
         assertThatNoException().isThrownBy(() ->
-                SqlSafetyValidator.validateQueryOnly("SELECT count(*) FROM information_schema.processlist"));
+                validateMysql("SELECT count(*) FROM information_schema.processlist"));
     }
 
     @Test
     void allowsWithCte() {
         assertThatNoException().isThrownBy(() ->
-                SqlSafetyValidator.validateQueryOnly(
+                validateMysql(
                         "WITH t AS (SELECT 1 AS v) SELECT v FROM t"));
     }
 
     @Test
     void allowsTrailingSemicolonAndWhitespace() {
         assertThatNoException().isThrownBy(() ->
-                SqlSafetyValidator.validateQueryOnly("  SELECT 1  ;  "));
+                validateMysql("  SELECT 1  ;  "));
     }
 
     @Test
     void allowsCaseInsensitiveSelectKeyword() {
-        assertThatNoException().isThrownBy(() -> SqlSafetyValidator.validateQueryOnly("select 1"));
+        assertThatNoException().isThrownBy(() -> validateMysql("select 1"));
     }
 
     @Test
     void rejectsBlankSql() {
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly(""))
+        assertThatThrownBy(() -> validateMysql(""))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("   "))
+        assertThatThrownBy(() -> validateMysql("   "))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly(null))
+        assertThatThrownBy(() -> validateMysql(null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void rejectsMultipleStatementsSeparatedBySemicolon() {
         assertThatThrownBy(() ->
-                SqlSafetyValidator.validateQueryOnly("SELECT 1; DROP TABLE foo"))
+                validateMysql("SELECT 1; DROP TABLE foo"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void rejectsNonSelectStatements() {
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("DELETE FROM alert_event"))
+        assertThatThrownBy(() -> validateMysql("DELETE FROM alert_event"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("UPDATE alert_event SET status='closed'"))
+        assertThatThrownBy(() -> validateMysql("UPDATE alert_event SET status='closed'"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("INSERT INTO alert_event(id) VALUES (1)"))
+        assertThatThrownBy(() -> validateMysql("INSERT INTO alert_event(id) VALUES (1)"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("DROP TABLE alert_event"))
+        assertThatThrownBy(() -> validateMysql("DROP TABLE alert_event"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void rejectsSyntaxError() {
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("SELECT FROM WHERE"))
+        assertThatThrownBy(() -> validateMysql("SELECT FROM WHERE"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -83,13 +88,30 @@ class SqlSafetyValidatorTest {
             "WAITFOR DELAY '0:0:5'",
     })
     void rejectsDangerousQueryFeatures(String sql) {
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly(sql))
+        assertThatThrownBy(() -> validateMysql(sql))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
+    void validatesDialectAgainstAuthoritativeDatabaseType() {
+        assertThatNoException().isThrownBy(() ->
+                SqlSafetyValidator.validateQueryOnly("SELECT * FROM users WHERE name ILIKE 'a%'", DbType.POSTGRESQL));
+        assertThatThrownBy(() ->
+                SqlSafetyValidator.validateQueryOnly("SELECT * FROM users WHERE name ILIKE 'a%'", DbType.MYSQL))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("PostgreSQL 专属语法");
+        assertThatThrownBy(() ->
+                SqlSafetyValidator.validateQueryOnly("SELECT * FROM a STRAIGHT_JOIN b ON a.id = b.id", DbType.POSTGRESQL))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MySQL 专属语法");
+        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("SELECT 1", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("数据库类型未识别");
+    }
+
+    @Test
     void dangerousFeatureCheckIsCaseInsensitive() {
-        assertThatThrownBy(() -> SqlSafetyValidator.validateQueryOnly("SELECT SLEEP(1)"))
+        assertThatThrownBy(() -> validateMysql("SELECT SLEEP(1)"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }

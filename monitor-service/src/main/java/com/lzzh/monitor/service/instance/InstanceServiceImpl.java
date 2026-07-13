@@ -95,6 +95,23 @@ public class InstanceServiceImpl implements InstanceService {
         return StringUtils.hasText(dt.getLabel()) ? dt.getLabel() : dt.getCode();
     }
 
+    /** 校验类型/版本引用及归属关系，服务端不接受前端自行拼接的组合。 */
+    private void validateDatabaseSelection(Long dbTypeId, Long dbVersionId) {
+        if (dbTypeId == null || dbVersionId == null) {
+            throw new BusinessException("数据库类型和版本不能为空");
+        }
+        DatabaseType type = databaseTypeMapper.selectById(dbTypeId);
+        DatabaseVersion version = databaseVersionMapper.selectById(dbVersionId);
+        if (type == null) {
+            throw new BusinessException("数据库类型不存在: " + dbTypeId);
+        }
+        if (version == null) {
+            throw new BusinessException("数据库版本不存在: " + dbVersionId);
+        }
+        if (!StringUtils.hasText(type.getCode()) || !type.getCode().equalsIgnoreCase(version.getDbType())) {
+            throw new BusinessException("数据库版本不属于所选数据库类型");
+        }
+    }
     // ── 查询 ──────────────────────────────────────────────────────────────────
 
     @Override
@@ -196,6 +213,7 @@ public class InstanceServiceImpl implements InstanceService {
 
     @Override
     public Long create(InstanceRequest request) {
+        validateDatabaseSelection(request.getDbTypeId(), request.getDbVersionId());
         DbInstance instance = InstanceConverter.toEntity(request);
         if (StringUtils.hasText(instance.getConnPassword())) {
             instance.setConnPassword(passwordCipher.encrypt(instance.getConnPassword()));
@@ -210,6 +228,15 @@ public class InstanceServiceImpl implements InstanceService {
     @Override
     public void update(InstanceRequest request) {
         checkAccessible(request.getId());
+        DbInstance existing = mapper.selectById(request.getId());
+        if (existing == null) {
+            throw new BusinessException("实例不存在: " + request.getId());
+        }
+        if (!Objects.equals(existing.getDbTypeId(), request.getDbTypeId())
+                || !Objects.equals(existing.getDbVersionId(), request.getDbVersionId())) {
+            throw new BusinessException("实例创建后不允许修改数据库类型和版本");
+        }
+        validateDatabaseSelection(existing.getDbTypeId(), existing.getDbVersionId());
         DbInstance instance = InstanceConverter.toEntity(request);
         if (instance.getConnPassword() != null && instance.getConnPassword().isBlank()) {
             instance.setConnPassword(null);

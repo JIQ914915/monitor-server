@@ -1,5 +1,6 @@
 package com.lzzh.monitor.service.instance;
 
+import com.lzzh.monitor.api.request.InstanceRequest;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
@@ -63,5 +64,45 @@ class InstanceServiceImplTest {
                 .hasMessage("实例不存在: 7");
         verifyNoInteractions(cleanupMapper);
         verify(dbInstanceMapper, never()).deleteById((Serializable) any());
+    }
+
+    @Test
+    void updateRejectsDatabaseTypeChange() {
+        DbInstance existing = new DbInstance();
+        existing.setId(7L);
+        existing.setDbTypeId(1L);
+        existing.setDbVersionId(10L);
+        when(dbInstanceMapper.selectById(7L)).thenReturn(existing);
+
+        InstanceRequest request = updateRequest(2L, 10L);
+
+        assertThatThrownBy(() -> service.update(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("实例创建后不允许修改数据库类型和版本");
+        verify(dbInstanceMapper, never()).updateById(any(DbInstance.class));
+    }
+
+    @Test
+    void updateRejectsDatabaseVersionChange() {
+        DbInstance existing = new DbInstance();
+        existing.setId(7L);
+        existing.setDbTypeId(1L);
+        existing.setDbVersionId(10L);
+        when(dbInstanceMapper.selectById(7L)).thenReturn(existing);
+
+        InstanceRequest request = updateRequest(1L, 11L);
+
+        assertThatThrownBy(() -> service.update(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("实例创建后不允许修改数据库类型和版本");
+        verify(dbInstanceMapper, never()).updateById(any(DbInstance.class));
+    }
+
+    private static InstanceRequest updateRequest(Long dbTypeId, Long dbVersionId) {
+        InstanceRequest request = new InstanceRequest();
+        request.setId(7L);
+        request.setDbTypeId(dbTypeId);
+        request.setDbVersionId(dbVersionId);
+        return request;
     }
 }

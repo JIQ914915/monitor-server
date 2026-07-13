@@ -3,6 +3,7 @@ package com.lzzh.monitor.collector.alert;
 import com.lzzh.monitor.api.response.CollectTargetVo;
 import com.lzzh.monitor.collector.connection.TargetDataSourceFactory;
 import com.lzzh.monitor.collector.spi.TargetConnectionCache;
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.dao.entity.AlertEvent;
 import com.lzzh.monitor.dao.entity.AlertRule;
 import com.lzzh.monitor.service.alert.SqlSafetyValidator;
@@ -63,7 +64,7 @@ public class AlertCustomSqlEvaluator {
             return AlertEvalCounter.EMPTY;
         }
         try {
-            SqlSafetyValidator.validateQueryOnly(customSql);
+            SqlSafetyValidator.validateQueryOnly(customSql, DbType.of(target == null ? null : target.getDbType()));
         } catch (IllegalArgumentException e) {
             log.warn("自定义规则 [{}] SQL 安全校验失败: {}", rule.getRuleCode(), e.getMessage());
             // 与建连失败同口径标记 sql_error：配置错误应在界面可见，而非让活跃事件静默挂起到自愈

@@ -30,6 +30,7 @@ import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.MetricDefinitionMapper;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.dao.entity.MetricDefinition;
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import com.lzzh.monitor.service.datascope.DataScopeService;
@@ -111,6 +112,27 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         }
     }
 
+    /** 根据服务端数据库类型表解析受支持类型，禁止相信请求中的类型文本。 */
+    private DbType requireDbType(Long dbTypeId) {
+        if (dbTypeId == null) {
+            throw new IllegalArgumentException("适用数据库类型不能为空");
+        }
+        DatabaseType row = databaseTypeMapper.selectById(dbTypeId);
+        DbType type = DbType.of(row == null ? null : row.getCode());
+        if (type == null) {
+            throw new IllegalArgumentException("数据库类型不存在或暂不支持: " + dbTypeId);
+        }
+        return type;
+    }
+
+    /** 单实例规则只根据 instanceId 解析真实类型，不接收前端传入的 dbType。 */
+    private DbType requireInstanceDbType(Long instanceId) {
+        DbInstance instance = instanceId == null ? null : dbInstanceMapper.selectById(instanceId);
+        if (instance == null) {
+            throw new IllegalArgumentException("实例不存在：" + instanceId);
+        }
+        return requireDbType(instance.getDbTypeId());
+    }
     // ── 分页查询 ─────────────────────────────────────────────────────────────
 
     @Override
@@ -328,7 +350,8 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         if (customCfg == null && StringUtils.hasText(incomingRuleCode)) {
             customCfg = loadCustomConfigByRuleCode(incomingRuleCode);
         }
-        customCfg = saveCustomInstanceConfig(customCfg, req);
+        DbType instanceDbType = requireInstanceDbType(req.getInstanceId());
+        customCfg = saveCustomInstanceConfig(customCfg, req, instanceDbType);
         // 与内置规则 save、toggleEnabled 停用路径保持一致：停用即联动关闭活跃事件并清理持续窗口
         if (Boolean.FALSE.equals(customCfg.getEnabled())) {
             closeActiveEventsByRule(customCfg.getRuleCode(), customCfg.getInstanceId());
@@ -584,9 +607,7 @@ public class AlertRuleServiceImpl implements AlertRuleService {
                 throw new IllegalArgumentException("内置规则编码不允许修改");
             }
         }
-        if (req.getDbTypeId() == null) {
-            throw new IllegalArgumentException("适用数据库类型不能为空");
-        }
+        DbType ruleDbType = requireDbType(req.getDbTypeId());
         rule.setRuleType("builtin");
         rule.setRuleName(req.getRuleName().trim());
         rule.setRuleLevel(req.getRuleLevel().trim());
@@ -630,7 +651,7 @@ public class AlertRuleServiceImpl implements AlertRuleService {
             if (customSql == null) {
                 throw new IllegalArgumentException("目标库 SQL 规则必须配置查询语句");
             }
-            SqlSafetyValidator.validateQueryOnly(customSql);
+            SqlSafetyValidator.validateQueryOnly(customSql, ruleDbType);
             cond.put("customSql", customSql);
             String resultMode = StringUtils.hasText(req.getResultMode())
                     ? req.getResultMode().trim().toLowerCase() : "single";
@@ -916,7 +937,7 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         return rule;
     }
 
-    private AlertRuleInstanceConfig saveCustomInstanceConfig(AlertRuleInstanceConfig cfg, AlertRuleSaveRequest req) {
+    private AlertRuleInstanceConfig saveCustomInstanceConfig(AlertRuleInstanceConfig cfg, AlertRuleSaveRequest req, DbType dbType) {
         boolean isNew = cfg == null;
         String incomingRuleCode = StringUtils.hasText(req.getRuleCode()) ? req.getRuleCode().trim() : null;
         if (StringUtils.hasText(incomingRuleCode) && !incomingRuleCode.startsWith("custom.")) {
@@ -963,7 +984,7 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         }
         String customSql = getFrom(cond, "customSql");
         if (StringUtils.hasText(customSql)) {
-            SqlSafetyValidator.validateQueryOnly(customSql);
+            SqlSafetyValidator.validateQueryOnly(customSql, dbType);
         }
         // 依赖指标编码列表落库（自定义规则整体存于 instance_config，故随 conditionConfig 一并持久化，
         // 避免请求携带 metricCodes 却被静默丢弃）。
