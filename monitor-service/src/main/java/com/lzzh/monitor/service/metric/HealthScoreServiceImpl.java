@@ -2,11 +2,8 @@ package com.lzzh.monitor.service.metric;
 
 import com.lzzh.monitor.api.response.HealthScoreVo;
 import com.lzzh.monitor.common.enums.DbType;
-import com.lzzh.monitor.dao.entity.DatabaseType;
-import com.lzzh.monitor.dao.entity.DbInstance;
-import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
-import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
@@ -14,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 健康评分计算服务实现（实时概况页与 healthCalculateJobHandler 共用同一口径）。
@@ -129,12 +125,7 @@ public class HealthScoreServiceImpl implements HealthScoreService {
     @Resource
     private TsMetricLatestDao latestDao;
     @Resource
-    private DbInstanceMapper instanceMapper;
-    @Resource
-    private DatabaseTypeMapper databaseTypeMapper;
-
-    /** dbTypeId → DbType 缓存（database_type 行数极少且不变更类型编码）。 */
-    private final Map<Long, DbType> dbTypeCache = new ConcurrentHashMap<>();
+    private InstanceRuntimeMetadataService runtimeMetadataService;
     private final HealthScorePolicyRegistry policyRegistry = new HealthScorePolicyRegistry(List.of(
             new MySqlHealthScorePolicy(),
             new PostgreSqlHealthScorePolicy()));
@@ -145,19 +136,12 @@ public class HealthScoreServiceImpl implements HealthScoreService {
     }
 
     private DbType resolveDbType(Long instanceId) {
-        DbInstance instance = instanceMapper.selectById(instanceId);
-        if (instance == null || instance.getDbTypeId() == null) {
-            throw new IllegalArgumentException("实例未配置数据库类型: " + instanceId);
+        String code = runtimeMetadataService.getRequired(instanceId).dbTypeCode();
+        DbType type = DbType.of(code);
+        if (type == null) {
+            throw new UnsupportedOperationException("暂不支持健康评分的数据库类型: " + code);
         }
-        return dbTypeCache.computeIfAbsent(instance.getDbTypeId(), id -> {
-            DatabaseType databaseType = databaseTypeMapper.selectById(id);
-            String code = databaseType == null ? null : databaseType.getCode();
-            DbType type = DbType.of(code);
-            if (type == null) {
-                throw new UnsupportedOperationException("暂不支持健康评分的数据库类型: " + code);
-            }
-            return type;
-        });
+        return type;
     }
 
     private final class MySqlHealthScorePolicy implements HealthScorePolicy {

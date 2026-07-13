@@ -4,10 +4,10 @@ import com.lzzh.monitor.api.request.SlowSqlExplainRequest;
 import com.lzzh.monitor.api.response.SlowSqlExplainVo;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.common.security.PasswordCipher;
-import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.entity.DbInstance;
-import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadata;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -46,7 +46,7 @@ public class SlowSqlExplainServiceImpl implements SlowSqlExplainService {
     @Resource
     private DbInstanceMapper instanceMapper;
     @Resource
-    private DatabaseTypeMapper databaseTypeMapper;
+    private InstanceRuntimeMetadataService runtimeMetadataService;
     @Resource
     private PasswordCipher passwordCipher;
 
@@ -58,14 +58,14 @@ public class SlowSqlExplainServiceImpl implements SlowSqlExplainService {
         if (ins == null) {
             throw new BusinessException("实例不存在: " + request.getInstanceId());
         }
-        DatabaseType type = ins.getDbTypeId() == null ? null : databaseTypeMapper.selectById(ins.getDbTypeId());
-        if (type == null || !StringUtils.hasText(type.getUrlTemplate())) {
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(request.getInstanceId());
+        if (!StringUtils.hasText(metadata.urlTemplate())) {
             throw new BusinessException("实例对应数据库类型缺少 JDBC URL 模板，请在【数据库类型管理】中补全");
         }
 
         String schema = StringUtils.hasText(request.getSchemaName())
                 ? request.getSchemaName() : ins.getDatabaseName();
-        String url = type.getUrlTemplate()
+        String url = metadata.urlTemplate()
                 .replace("{host}", ins.getHost() == null ? "" : ins.getHost())
                 .replace("{port}", ins.getPort() == null ? "" : String.valueOf(ins.getPort()))
                 .replace("{database}", schema == null ? "" : schema);

@@ -26,6 +26,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <!-- OpenAPI3 注解：请求/响应 DTO 标注 @Schema -->
         <dependency>
             <groupId>io.swagger.core.v3</groupId>

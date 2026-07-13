@@ -55,6 +55,8 @@ public class InstanceServiceImpl implements InstanceService {
     private HostMapper hostMapper;
     @Resource
     private InstanceDataCleanupMapper instanceDataCleanupMapper;
+    @Resource
+    private InstanceRuntimeMetadataService runtimeMetadataService;
 
     /** 主机查找表（hostId → Host），供列表/详情解析 hostName / hostOsType。 */
     private Map<Long, Host> loadHostMap(List<DbInstance> instances) {
@@ -199,12 +201,11 @@ public class InstanceServiceImpl implements InstanceService {
         if (ins == null) {
             throw new BusinessException("实例不存在: " + id);
         }
-        Map<Long, DatabaseType> typeMap = loadTypeMap();
-        Map<Long, String> versionMap = loadVersionMap();
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(id);
         InstanceVo vo = InstanceConverter.toVo(
                 ins,
-                resolveTypeName(typeMap.get(ins.getDbTypeId())),
-                versionMap.get(ins.getDbVersionId()));
+                metadata.dbTypeLabel(),
+                metadata.dbVersion());
         fillHostInfo(vo, ins, loadHostMap(List.of(ins)));
         return vo;
     }
@@ -222,6 +223,7 @@ public class InstanceServiceImpl implements InstanceService {
             instance.setInstanceCode(UUID.randomUUID().toString());
         }
         mapper.insert(instance);
+        runtimeMetadataService.refresh(instance.getId());
         return instance.getId();
     }
 
@@ -232,12 +234,15 @@ public class InstanceServiceImpl implements InstanceService {
         if (existing == null) {
             throw new BusinessException("实例不存在: " + request.getId());
         }
-        if (!Objects.equals(existing.getDbTypeId(), request.getDbTypeId())
-                || !Objects.equals(existing.getDbVersionId(), request.getDbVersionId())) {
+        if ((request.getDbTypeId() != null && !Objects.equals(existing.getDbTypeId(), request.getDbTypeId()))
+                || (request.getDbVersionId() != null
+                && !Objects.equals(existing.getDbVersionId(), request.getDbVersionId()))) {
             throw new BusinessException("实例创建后不允许修改数据库类型和版本");
         }
         validateDatabaseSelection(existing.getDbTypeId(), existing.getDbVersionId());
         DbInstance instance = InstanceConverter.toEntity(request);
+        instance.setDbTypeId(existing.getDbTypeId());
+        instance.setDbVersionId(existing.getDbVersionId());
         if (instance.getConnPassword() != null && instance.getConnPassword().isBlank()) {
             instance.setConnPassword(null);
         } else if (StringUtils.hasText(instance.getConnPassword())) {
@@ -250,6 +255,7 @@ public class InstanceServiceImpl implements InstanceService {
                     .eq(DbInstance::getId, request.getId())
                     .set(DbInstance::getHostId, null));
         }
+        runtimeMetadataService.refresh(request.getId());
     }
 
     @Override
@@ -261,6 +267,7 @@ public class InstanceServiceImpl implements InstanceService {
         }
         instanceDataCleanupMapper.deleteByInstanceId(id);
         mapper.deleteById(id);
+        runtimeMetadataService.evict(id);
     }
 
     @Override
@@ -595,16 +602,17 @@ public class InstanceServiceImpl implements InstanceService {
 
     @Override
     public ConnectionTestVo testConnection(ConnectionTestRequest req) {
-        String url = buildJdbcUrl(req);
+        String dbType = resolveConnectionDbType(req);
+        String url = buildJdbcUrl(req, dbType);
         DriverManager.setLoginTimeout(5);
         try (Connection conn = DriverManager.getConnection(url,
                 req.getConnUser(), req.getConnPassword())) {
             String version = conn.getMetaData().getDatabaseProductVersion();
             ConnectionTestVo vo = new ConnectionTestVo();
             vo.setVersion(StringUtils.hasText(version) ? version : "unknown");
-            if ("mysql".equalsIgnoreCase(req.getDbType())) {
+            if ("mysql".equalsIgnoreCase(dbType)) {
                 vo.setChecks(checkMySqlPrivileges(conn, version, req.getConnUser()));
-            } else if ("postgresql".equalsIgnoreCase(req.getDbType())) {
+            } else if ("postgresql".equalsIgnoreCase(dbType)) {
                 vo.setChecks(checkPostgreSqlPrivileges(conn, req.getConnUser()));
             } else {
                 vo.setChecks(List.of());
@@ -775,10 +783,21 @@ public class InstanceServiceImpl implements InstanceService {
         }
     }
 
-    private String buildJdbcUrl(ConnectionTestRequest req) {
+    private String resolveConnectionDbType(ConnectionTestRequest req) {
+        if (req.getInstanceId() != null) {
+            checkAccessible(req.getInstanceId());
+            return runtimeMetadataService.getRequired(req.getInstanceId()).dbTypeCode();
+        }
+        if (!StringUtils.hasText(req.getDbType())) {
+            throw new BusinessException("新增实例连接测试必须指定数据库类型");
+        }
+        return req.getDbType().trim();
+    }
+
+    private String buildJdbcUrl(ConnectionTestRequest req, String dbType) {
         String host = req.getHost();
         int port = req.getPort();
-        String type = req.getDbType() == null ? "" : req.getDbType().toLowerCase();
+        String type = dbType.toLowerCase();
         return switch (type) {
             case "mysql" -> "jdbc:mysql://" + host + ":" + port
                     + "/?connectTimeout=5000&socketTimeout=8000&useSSL=false"
@@ -789,7 +808,7 @@ public class InstanceServiceImpl implements InstanceService {
             case "oracle" -> "jdbc:oracle:thin:@" + host + ":" + port + ":orcl";
             case "sqlserver" -> "jdbc:sqlserver://" + host + ":" + port
                     + ";encrypt=false;loginTimeout=5";
-            default -> throw new BusinessException("暂不支持的数据库类型：" + req.getDbType());
+            default -> throw new BusinessException("暂不支持的数据库类型：" + dbType);
         };
     }
 
@@ -831,18 +850,13 @@ public class InstanceServiceImpl implements InstanceService {
         if (ins == null) {
             return null;
         }
-        DatabaseType dt = ins.getDbTypeId() == null ? null : databaseTypeMapper.selectById(ins.getDbTypeId());
-        String versionCode = null;
-        if (ins.getDbVersionId() != null) {
-            var dv = databaseVersionMapper.selectById(ins.getDbVersionId());
-            versionCode = dv == null ? null : dv.getVersionCode();
-        }
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
         CollectTargetVo t = InstanceConverter.toCollectTarget(
                 ins,
-                resolveTypeName(dt),
-                versionCode,
-                dt != null ? dt.getDriverClass() : null,
-                dt != null ? dt.getUrlTemplate() : null);
+                metadata.dbTypeLabel(),
+                metadata.dbVersion(),
+                metadata.driverClass(),
+                metadata.urlTemplate());
         t.setConnPassword(passwordCipher.decrypt(t.getConnPassword()));
         return t;
     }

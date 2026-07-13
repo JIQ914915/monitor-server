@@ -34,6 +34,8 @@ import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import com.lzzh.monitor.service.datascope.DataScopeService;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadata;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import jakarta.annotation.Resource;
 
 import java.util.function.Function;
@@ -101,6 +103,8 @@ public class AlertRuleServiceImpl implements AlertRuleService {
     private SysUserMapper sysUserMapper;
     @Resource
     private DataScopeService dataScopeService;
+    @Resource
+    private InstanceRuntimeMetadataService runtimeMetadataService;
 
     /** 校验实例是否在当前用户数据范围内，越权配置统一拒绝（403 语义）。 */
     private void checkInstanceAccessible(Long instanceId) {
@@ -127,11 +131,11 @@ public class AlertRuleServiceImpl implements AlertRuleService {
 
     /** 单实例规则只根据 instanceId 解析真实类型，不接收前端传入的 dbType。 */
     private DbType requireInstanceDbType(Long instanceId) {
-        DbInstance instance = instanceId == null ? null : dbInstanceMapper.selectById(instanceId);
-        if (instance == null) {
-            throw new IllegalArgumentException("实例不存在：" + instanceId);
+        DbType type = DbType.of(runtimeMetadataService.getRequired(instanceId).dbTypeCode());
+        if (type == null) {
+            throw new IllegalArgumentException("实例数据库类型暂不支持：" + instanceId);
         }
-        return requireDbType(instance.getDbTypeId());
+        return type;
     }
     // ── 分页查询 ─────────────────────────────────────────────────────────────
 
@@ -145,14 +149,12 @@ public class AlertRuleServiceImpl implements AlertRuleService {
         }
         checkInstanceAccessible(instanceId);
 
-        // 解析实例的 dbTypeId / dbVersionId（用于过滤内置规则）
+        // 类型和版本统一从运行元数据缓存解析；实例实体仅用于主机关联判断
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
+        Long instDbTypeId = metadata.dbTypeId();
+        Long instDbVersionId = metadata.dbVersionId();
         DbInstance inst = dbInstanceMapper.selectById(instanceId);
-        if (inst == null || inst.getDbTypeId() == null) {
-            throw new BusinessException("实例未配置数据库类型: " + instanceId);
-        }
-        Long instDbTypeId    = inst.getDbTypeId();
-        Long instDbVersionId = inst != null ? inst.getDbVersionId() : null;
-        Long instHostId      = inst != null ? inst.getHostId()      : null;
+        Long instHostId = inst == null ? null : inst.getHostId();
 
         // 查询适用于本实例的内置规则（按 dbTypeId + dbVersionIds；关联主机的实例追加 HOST 主机规则）
         List<AlertRule> builtins = queryBuiltins(instDbTypeId, instDbVersionId);
@@ -420,13 +422,11 @@ public class AlertRuleServiceImpl implements AlertRuleService {
             throw new IllegalArgumentException("一键开启常用规则必须传 instanceId");
         }
         checkInstanceAccessible(instanceId);
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
         DbInstance inst = dbInstanceMapper.selectById(instanceId);
-        if (inst == null) {
-            throw new IllegalArgumentException("实例不存在：" + instanceId);
-        }
         // 与规则列表同一套适配口径：类型 + 版本过滤，关联主机的实例追加 HOST 规则
-        List<AlertRule> builtins = queryBuiltins(inst.getDbTypeId(), inst.getDbVersionId());
-        if (inst.getHostId() != null) {
+        List<AlertRule> builtins = queryBuiltins(metadata.dbTypeId(), metadata.dbVersionId());
+        if (inst != null && inst.getHostId() != null) {
             builtins = appendHostBuiltins(builtins);
         }
         int enabledNow = 0;

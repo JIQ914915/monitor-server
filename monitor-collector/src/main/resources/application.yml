@@ -17,6 +17,13 @@ spring:
       test-while-idle: true
       time-between-eviction-runs-millis: 60000
       keep-alive: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml

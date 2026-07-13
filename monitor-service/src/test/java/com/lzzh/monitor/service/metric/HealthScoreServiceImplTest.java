@@ -1,10 +1,8 @@
 package com.lzzh.monitor.service.metric;
 
-import com.lzzh.monitor.dao.entity.DatabaseType;
-import com.lzzh.monitor.dao.entity.DbInstance;
-import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
-import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadata;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -15,23 +13,14 @@ import static org.mockito.Mockito.when;
 class HealthScoreServiceImplTest {
 
     @Test
-    void rejectsUnknownDatabaseTypeInsteadOfFallingBackToMySql() {
+    void rejectsUnknownDatabaseTypeFromRuntimeMetadataInsteadOfFallingBackToMySql() {
         TsMetricLatestDao latestDao = mock(TsMetricLatestDao.class);
-        DbInstanceMapper instanceMapper = mock(DbInstanceMapper.class);
-        DatabaseTypeMapper databaseTypeMapper = mock(DatabaseTypeMapper.class);
+        InstanceRuntimeMetadataService runtimeMetadataService = mock(InstanceRuntimeMetadataService.class);
         HealthScoreServiceImpl service = new HealthScoreServiceImpl();
         ReflectionTestUtils.setField(service, "latestDao", latestDao);
-        ReflectionTestUtils.setField(service, "instanceMapper", instanceMapper);
-        ReflectionTestUtils.setField(service, "databaseTypeMapper", databaseTypeMapper);
-
-        DbInstance instance = new DbInstance();
-        instance.setId(1L);
-        instance.setDbTypeId(10L);
-        DatabaseType databaseType = new DatabaseType();
-        databaseType.setId(10L);
-        databaseType.setCode("ORACLE");
-        when(instanceMapper.selectById(1L)).thenReturn(instance);
-        when(databaseTypeMapper.selectById(10L)).thenReturn(databaseType);
+        ReflectionTestUtils.setField(service, "runtimeMetadataService", runtimeMetadataService);
+        when(runtimeMetadataService.getRequired(1L)).thenReturn(new InstanceRuntimeMetadata(
+                1L, 10L, 20L, "ORACLE", "Oracle", "19c", null, null));
 
         assertThatThrownBy(() -> service.calculate(1L))
                 .isInstanceOf(UnsupportedOperationException.class)

@@ -25,6 +25,8 @@ import com.lzzh.monitor.dao.mapper.ScenarioInstanceConfigMapper;
 import com.lzzh.monitor.dao.mapper.SysUserMapper;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import com.lzzh.monitor.service.datascope.DataScopeService;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadata;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator.SignalStatus;
 import com.lzzh.monitor.service.scenario.ScenarioConditionEvaluator.TriState;
 import jakarta.annotation.Resource;
@@ -76,11 +78,13 @@ public class ScenarioServiceImpl implements ScenarioService {
     private ScenarioEvaluationService evaluationService;
     @Resource
     private DataScopeService dataScopeService;
+    @Resource
+    private InstanceRuntimeMetadataService runtimeMetadataService;
 
     @Override
     public ScenarioPageVo page(ScenarioPageRequest req) {
         DbInstance instance = requireAccessibleInstance(req.getInstanceId());
-        List<MonitorScenario> scenarios = listApplicableScenarios(instance);
+        List<MonitorScenario> scenarios = listApplicableScenarios(instance.getId());
         Map<String, ScenarioInstanceConfig> configs = loadConfigs(instance.getId());
 
         // 全量统计启停数（页签角标与统计卡片），再按页签过滤 + 级别排序 + 分页
@@ -223,7 +227,7 @@ public class ScenarioServiceImpl implements ScenarioService {
     @Transactional
     public int enableRecommended(Long instanceId) {
         DbInstance instance = requireAccessibleInstance(instanceId);
-        List<MonitorScenario> applicable = listApplicableScenarios(instance);
+        List<MonitorScenario> applicable = listApplicableScenarios(instance.getId());
         Map<String, ScenarioInstanceConfig> configs = loadConfigs(instance.getId());
         OffsetDateTime now = OffsetDateTime.now();
         int enabledNow = 0;
@@ -321,11 +325,12 @@ public class ScenarioServiceImpl implements ScenarioService {
     }
 
     /** 按实例的 db_type/db_version 过滤适配场景（db_version_ids 为空 = 全版本适用）。 */
-    private List<MonitorScenario> listApplicableScenarios(DbInstance instance) {
+    private List<MonitorScenario> listApplicableScenarios(Long instanceId) {
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
         return scenarioMapper.selectList(null).stream()
-                .filter(s -> s.getDbTypeId() == null || s.getDbTypeId().equals(instance.getDbTypeId()))
+                .filter(s -> s.getDbTypeId() == null || s.getDbTypeId().equals(metadata.dbTypeId()))
                 .filter(s -> s.getDbVersionIds() == null || s.getDbVersionIds().isEmpty()
-                        || (instance.getDbVersionId() != null && s.getDbVersionIds().contains(instance.getDbVersionId())))
+                        || s.getDbVersionIds().contains(metadata.dbVersionId()))
                 .toList();
     }
 

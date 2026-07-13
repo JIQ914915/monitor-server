@@ -113,22 +113,13 @@ public class MetricQueryServiceImpl implements MetricQueryService {
     @Resource
     private com.lzzh.monitor.dao.mapper.DbInstanceMapper dbInstanceMapper;
     @Resource
-    private com.lzzh.monitor.dao.mapper.DatabaseTypeMapper databaseTypeMapper;
-    @Resource
     private DbTypeResolver dbTypeResolver;
     @Resource
     private DatabaseMetricCatalogRegistry metricCatalogRegistry;
 
-    /** dbTypeId → DbType 缓存（database_type 行数极少且类型编码不变更）。 */
-    private final java.util.concurrent.ConcurrentHashMap<Long, com.lzzh.monitor.common.enums.DbType> dbTypeCache =
-            new java.util.concurrent.ConcurrentHashMap<>();
 
     private DatabaseMetricCatalog metricCatalog(Long instanceId) {
-        DbInstance instance = dbInstanceMapper.selectById(instanceId);
-        if (instance == null) {
-            throw new IllegalArgumentException("实例不存在: " + instanceId);
-        }
-        return metricCatalogRegistry.get(dbTypeResolver.resolve(instance));
+        return metricCatalogRegistry.get(dbTypeResolver.resolve(instanceId));
     }
     @Override
     public CapacityGrowthVo capacityGrowthTrend(Long instanceId, int days) {

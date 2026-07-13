@@ -10,8 +10,10 @@ import lombok.Data;
 @Schema(description = "实例连接测试入参")
 public class ConnectionTestRequest {
 
-    @Schema(description = "数据库类型", example = "mysql", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "数据库类型不能为空")
+    @Schema(description = "已有实例ID；编辑连接测试时必填，并以服务端缓存/数据库中的类型为准", example = "1")
+    private Long instanceId;
+
+    @Schema(description = "数据库类型；仅新增实例连接测试时必填", example = "mysql")
     private String dbType;
 
     @Schema(description = "主机地址", example = "127.0.0.1", requiredMode = Schema.RequiredMode.REQUIRED)

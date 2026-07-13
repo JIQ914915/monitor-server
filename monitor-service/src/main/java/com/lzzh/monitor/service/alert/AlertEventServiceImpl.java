@@ -17,6 +17,7 @@ import com.lzzh.monitor.dao.entity.*;
 import com.lzzh.monitor.dao.mapper.*;
 import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,9 +83,7 @@ public class AlertEventServiceImpl implements AlertEventService {
     @Resource
     private AlertDrilldownProfileService drilldownProfileService;
     @Resource
-    private DbInstanceMapper dbInstanceMapper;
-    @Resource
-    private DatabaseTypeMapper databaseTypeMapper;
+    private InstanceRuntimeMetadataService runtimeMetadataService;
 
     @Override
     public PageResult<AlertEventVo> page(AlertEventPageRequest req) {
@@ -187,10 +186,7 @@ public class AlertEventServiceImpl implements AlertEventService {
     }
 
     private String resolveDbType(Long instanceId) {
-        DbInstance instance = instanceId == null ? null : dbInstanceMapper.selectById(instanceId);
-        DatabaseType type = instance == null || instance.getDbTypeId() == null
-                ? null : databaseTypeMapper.selectById(instance.getDbTypeId());
-        return type == null ? null : type.getCode();
+        return runtimeMetadataService.getRequired(instanceId).dbTypeCode();
     }
 
     @Override

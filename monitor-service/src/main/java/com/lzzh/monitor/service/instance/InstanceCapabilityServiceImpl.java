@@ -3,12 +3,8 @@ package com.lzzh.monitor.service.instance;
 import com.lzzh.monitor.api.response.InstanceCapabilityVo;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.CollectLog;
-import com.lzzh.monitor.dao.entity.DatabaseType;
-import com.lzzh.monitor.dao.entity.DatabaseVersion;
 import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.CollectLogMapper;
-import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
-import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
 import jakarta.annotation.Resource;
@@ -50,9 +46,7 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
     @Resource
     private DbInstanceMapper instanceMapper;
     @Resource
-    private DatabaseTypeMapper databaseTypeMapper;
-    @Resource
-    private DatabaseVersionMapper versionMapper;
+    private InstanceRuntimeMetadataService runtimeMetadataService;
     @Resource
     private CollectLogMapper collectLogMapper;
     @Resource
@@ -64,7 +58,8 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         if (ins == null) {
             throw new BusinessException("实例不存在");
         }
-        String dbTypeCode = resolveDbTypeCode(ins);
+        InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
+        String dbTypeCode = metadata.dbTypeCode();
         if ("POSTGRESQL".equals(dbTypeCode)) {
             return detectPostgreSql(ins);
         }
@@ -72,7 +67,7 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
             return List.of(InstanceCapabilityVo.of("database", "数据库类型", VERSION_NOT_SUPPORT,
                     "暂不支持数据库类型：" + (dbTypeCode == null ? "未配置" : dbTypeCode)));
         }
-        String version = resolveVersion(ins);
+        String version = metadata.dbVersion();
         boolean is56 = version != null && version.startsWith("5.6");
         boolean is80Plus = version != null && version.startsWith("8.");
 
@@ -206,14 +201,6 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         return list;
     }
 
-    private String resolveDbTypeCode(DbInstance ins) {
-        if (ins.getDbTypeId() == null) {
-            return null;
-        }
-        DatabaseType type = databaseTypeMapper.selectById(ins.getDbTypeId());
-        return type == null || type.getCode() == null ? null : type.getCode().trim().toUpperCase();
-    }
-
     /** 采集状态能力：暂停 → 不适用；最新失败 → 采集异常；无日志/停滞 → 数据不足。 */
     private InstanceCapabilityVo collectCapability(DbInstance ins, CollectLog latest1m) {
         if ("paused".equals(ins.getStatus())) {
@@ -237,14 +224,6 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
                             + latest1m.getCollectTime().toLocalDateTime().toLocalTime() + "），请检查采集任务与目标库连通性");
         }
         return InstanceCapabilityVo.of("collect", "指标采集", AVAILABLE, null);
-    }
-
-    private String resolveVersion(DbInstance ins) {
-        if (ins.getDbVersionId() == null) {
-            return null;
-        }
-        DatabaseVersion v = versionMapper.selectById(ins.getDbVersionId());
-        return v == null ? null : v.getVersionCode();
     }
 
     private CollectLog latestLog(Long instanceId, String frequency) {

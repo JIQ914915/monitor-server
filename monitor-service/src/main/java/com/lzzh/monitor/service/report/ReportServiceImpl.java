@@ -27,9 +27,7 @@ import com.lzzh.monitor.dao.entity.SysUser;
 import com.lzzh.monitor.dao.mapper.AlertEventMapper;
 import com.lzzh.monitor.dao.mapper.AlertEventOperateLogMapper;
 import com.lzzh.monitor.dao.mapper.AlertRuleMapper;
-import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.mapper.CollectLogMapper;
-import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.InstanceGroupMapper;
 import com.lzzh.monitor.dao.mapper.MetricDefinitionMapper;
@@ -45,6 +43,7 @@ import com.lzzh.monitor.service.alert.AlertDrilldownProfileService;
 import com.lzzh.monitor.service.datascope.CurrentUserHolder;
 import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
+import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import com.lzzh.monitor.service.metric.MetricQueryService;
 import com.lzzh.monitor.service.support.Pages;
 import jakarta.annotation.Resource;
@@ -67,7 +66,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -149,25 +147,19 @@ public class ReportServiceImpl implements ReportService {
     @Resource
     private ReportMailService reportMailService;
     @Resource
-    private DatabaseTypeMapper databaseTypeMapper;
-
-    /** dbTypeId → DbType 缓存（database_type 行数极少且编码不变更）。 */
-    private final Map<Long, DbType> dbTypeCache = new ConcurrentHashMap<>();
+    private InstanceRuntimeMetadataService runtimeMetadataService;
 
     /** 解析实例数据库类型；缺失或未支持类型直接失败，禁止静默按 MySQL 处理。 */
     private DbType resolveDbType(DbInstance ins) {
-        if (ins == null || ins.getDbTypeId() == null) {
-            throw new BusinessException("实例未配置数据库类型");
+        if (ins == null) {
+            throw new BusinessException("实例不存在");
         }
-        return dbTypeCache.computeIfAbsent(ins.getDbTypeId(), id -> {
-            DatabaseType typeRow = databaseTypeMapper.selectById(id);
-            DbType type = DbType.of(typeRow == null ? null : typeRow.getCode());
-            if (type != DbType.MYSQL && type != DbType.POSTGRESQL) {
-                throw new BusinessException("报告暂不支持数据库类型: "
-                        + (typeRow == null ? "未配置" : typeRow.getCode()));
-            }
-            return type;
-        });
+        String code = runtimeMetadataService.getRequired(ins.getId()).dbTypeCode();
+        DbType type = DbType.of(code);
+        if (type != DbType.MYSQL && type != DbType.POSTGRESQL) {
+            throw new BusinessException("报告暂不支持数据库类型: " + code);
+        }
+        return type;
     }
 
     private boolean isPostgres(DbInstance ins) {
@@ -1284,10 +1276,7 @@ public class ReportServiceImpl implements ReportService {
     }
 
     private String resolveDbTypeCode(Long instanceId) {
-        DbInstance instance = instanceId == null ? null : instanceMapper.selectById(instanceId);
-        DatabaseType type = instance == null || instance.getDbTypeId() == null
-                ? null : databaseTypeMapper.selectById(instance.getDbTypeId());
-        return type == null ? null : type.getCode();
+        return runtimeMetadataService.getRequired(instanceId).dbTypeCode();
     }
 
     private static String operateLabel(String t) {
