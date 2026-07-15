@@ -18,6 +18,8 @@ public class CollectResult {
     private List<ObjectMetricPoint> objectPoints = new ArrayList<>();
     /** Top SQL / digest 明细点。 */
     private List<TopSqlPoint> topSqlPoints = new ArrayList<>();
+    /** PostgreSQL Query Analytics 周期增量。 */
+    private List<PgQueryStatPoint> pgQueryStatPoints = new ArrayList<>();
     /** 长连接明细点（processlist TIME >= 阈值的连接快照）。 */
     private List<LongConnPoint> longConnPoints = new ArrayList<>();
     /** 慢 SQL 真实执行样本点（events_statements_history 耗时超阈值语句）。 */

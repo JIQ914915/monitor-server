@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
  * <p>结构与 MySqlCollector 对齐：分钟级走常驻缓存连接（持实例锁），
  * 小时级/天级低频重查询走临时连接（不占锁）。
  */
-@CollectorFor(dbType = DbType.POSTGRESQL, versions = {"13", "14", "15", "16"})
+@CollectorFor(dbType = DbType.POSTGRESQL, versions = {"14", "15", "16", "17", "18"})
 public class PostgreSqlCollector extends AbstractDatabaseCollector {
 
     private static final Logger log = LoggerFactory.getLogger(PostgreSqlCollector.class);
@@ -94,6 +94,7 @@ public class PostgreSqlCollector extends AbstractDatabaseCollector {
         result.setTextPoints(sink.text());
         result.setObjectPoints(sink.objects());
         result.setTopSqlPoints(sink.topSql());
+        result.setPgQueryStatPoints(sink.pgQueryStats());
         result.setSlowSqlSamplePoints(sink.slowSqlSamples());
         sink.getItemErrors().forEach(err -> result.addItemError(err.code(), err.message()));
         return result;

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsPgQueryStatWriterMapper">
+    <insert id="insertBatch">
+        INSERT INTO pg_query_stat_history
+        (instance_id, database_name, user_name, query_id, query_text,
+         delta_calls, delta_exec_time_ms, delta_rows, metrics, stats_reset,
+         deallocations, collect_time)
+        VALUES
+        <foreach collection="items" item="it" separator=",">
+            (#{instanceId}, #{it.databaseName,jdbcType=VARCHAR}, #{it.userName,jdbcType=VARCHAR},
+             #{it.queryId}, #{it.queryText,jdbcType=VARCHAR},
+             #{it.deltaCalls}, #{it.deltaExecTimeMs}, #{it.deltaRows},
+             CAST(#{it.metricsJson} AS jsonb),
+             CAST(#{it.statsReset,jdbcType=VARCHAR} AS timestamptz),
+             #{it.deallocations}, to_timestamp(#{it.timestampMillis} / 1000.0))
+        </foreach>
+    </insert>
+</mapper>

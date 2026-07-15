@@ -40,22 +40,16 @@ public class PgStatIoItem implements PgMetricItem {
     @Override
     public void collect(Connection conn, CollectRequest request, PgVersionAdapter adapter, PgMetricSink sink)
             throws SQLException {
-        if (majorVersion(request.getVersion()) < 16) {
+        String sql = adapter.statIoSql();
+        if (sql == null) {
             return;
         }
         long instanceId = request.getInstanceId();
         long ts = System.currentTimeMillis();
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(DEFAULT_QUERY_TIMEOUT_SECONDS);
-            try (ResultSet rs = st.executeQuery("""
-                    SELECT COALESCE(SUM(reads), 0)      AS reads,
-                           COALESCE(SUM(writes), 0)     AS writes,
-                           COALESCE(SUM(extends), 0)    AS extends,
-                           COALESCE(SUM(read_time), 0)  AS read_time_ms,
-                           COALESCE(SUM(write_time), 0) AS write_time_ms
-                      FROM pg_stat_io
-                     WHERE object = 'relation'
-                    """)) {
+            try (ResultSet rs = st.executeQuery(sql)) {
+
                 if (rs.next()) {
                     addRate(sink, instanceId, "pg.io.read_rate", rs.getLong("reads"), ts);
                     addRate(sink, instanceId, "pg.io.write_rate", rs.getLong("writes"), ts);
@@ -64,11 +58,21 @@ public class PgStatIoItem implements PgMetricItem {
                             Math.round(rs.getDouble("read_time_ms")), ts);
                     addDelta(sink, instanceId, "pg.io.write_time_ms_delta",
                             Math.round(rs.getDouble("write_time_ms")), ts);
+                    addNullableRate(sink, instanceId, "pg.io.read_bytes_rate", rs, "read_bytes", ts);
+                    addNullableRate(sink, instanceId, "pg.io.write_bytes_rate", rs, "write_bytes", ts);
+                    addNullableRate(sink, instanceId, "pg.io.extend_bytes_rate", rs, "extend_bytes", ts);
                 }
             }
         }
     }
 
+    private void addNullableRate(PgMetricSink sink, long instanceId, String metric,
+                                 ResultSet rs, String column, long ts) throws SQLException {
+        long value = rs.getLong(column);
+        if (!rs.wasNull()) {
+            addRate(sink, instanceId, metric, value, ts);
+        }
+    }
     private void addRate(PgMetricSink sink, long instanceId, String metric, long value, long ts) {
         Double rate = deltaStore.rate(instanceId, metric, value, ts);
         if (rate != null) {
@@ -83,15 +87,4 @@ public class PgStatIoItem implements PgMetricItem {
         }
     }
 
-    private static int majorVersion(String version) {
-        if (version == null || version.isBlank()) {
-            return 13;
-        }
-        try {
-            String head = version.split("[^0-9]")[0];
-            return head.isEmpty() ? 13 : Integer.parseInt(head);
-        } catch (NumberFormatException e) {
-            return 13;
-        }
-    }
 }

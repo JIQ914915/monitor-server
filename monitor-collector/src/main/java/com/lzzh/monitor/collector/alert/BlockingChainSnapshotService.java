@@ -55,10 +55,15 @@ public class BlockingChainSnapshotService {
             "mysql.innodb.blocked_sessions",
             "mysql.innodb.trx_max_seconds",
             "mysql.innodb.lock_timeout_count",
-            "mysql.innodb.deadlock_count");
+            "mysql.innodb.deadlock_count",
+            "pg.locks.waiting",
+            "pg.blocked_sessions",
+            "pg.trx.max_seconds",
+            "pg.delta.deadlocks");
 
     /** 锁相关场景编码。 */
-    private static final String LOCK_SCENARIO = "scenario.lock_contention";
+    private static final Set<String> LOCK_SCENARIOS = Set.of(
+            "scenario.lock_contention", "scenario.pg_lock_contention");
 
     private static final int QUERY_TIMEOUT_SECONDS = 10;
     private static final int MAX_ROWS = 50;
@@ -93,7 +98,7 @@ public class BlockingChainSnapshotService {
         if (StringUtils.hasText(metricName) && LOCK_METRICS.contains(metricName)) {
             return true;
         }
-        return LOCK_SCENARIO.equals(scenarioCode);
+        return LOCK_SCENARIOS.contains(scenarioCode);
     }
 
     /** 异步抓取阻塞链现场并回写事件行（建单成功后调用，失败不影响主流程）。 */
@@ -122,7 +127,7 @@ public class BlockingChainSnapshotService {
             // 面向用户的错误文案：区分权限不足与一般失败（小白用户友好原则）
             String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             if (msg.contains("denied") || msg.contains("Access")) {
-                snapshot.put("error", "抓取失败：采集账号缺少查询锁等待视图的权限（需 PROCESS 权限及 sys/performance_schema 访问权）");
+                snapshot.put("error", "抓取失败：采集账号缺少锁等待视图权限（PostgreSQL 建议授予 pg_monitor；MySQL 需 PROCESS 及 sys/performance_schema 访问权）");
             } else {
                 snapshot.put("error", "抓取失败：" + truncate(msg, 300));
             }
@@ -133,7 +138,7 @@ public class BlockingChainSnapshotService {
 
     private List<Map<String, Object>> queryBlockingChain(CollectTargetVo target) throws Exception {
         String url = buildJdbcUrl(target);
-        String sql = blockingChainSql(target.getDbVersion());
+        String sql = blockingChainSql(target.getDbType(), target.getDbVersion());
         List<Map<String, Object>> rows = new ArrayList<>();
         DriverManager.setLoginTimeout(5);
         try (Connection conn = DriverManager.getConnection(url, target.getConnUser(), target.getConnPassword());
@@ -162,6 +167,33 @@ public class BlockingChainSnapshotService {
      * wait_age_secs / locked_table / locked_type / waiting_pid / waiting_query / blocking_pid / blocking_query。
      */
     static String blockingChainSql(String dbVersion) {
+        return blockingChainSql("MySQL", dbVersion);
+    }
+
+    static String blockingChainSql(String dbType, String dbVersion) {
+        if ("PostgreSQL".equalsIgnoreCase(dbType) || "POSTGRESQL".equalsIgnoreCase(dbType)) {
+            return """
+                    SELECT GREATEST(0, EXTRACT(EPOCH FROM
+                               (clock_timestamp() - COALESCE(wa.query_start, wa.xact_start))))::bigint
+                               AS wait_age_secs,
+                           COALESCE(n.nspname || '.' || c.relname, l.locktype) AS locked_table,
+                           l.mode AS locked_type,
+                           wa.pid AS waiting_pid, wa.query AS waiting_query,
+                           ba.pid AS blocking_pid, ba.query AS blocking_query
+                      FROM pg_stat_activity wa
+                      CROSS JOIN LATERAL unnest(pg_blocking_pids(wa.pid)) blocked_by(pid)
+                      JOIN pg_stat_activity ba ON ba.pid = blocked_by.pid
+                      LEFT JOIN LATERAL (
+                          SELECT locktype, mode, relation
+                            FROM pg_locks
+                           WHERE pid = wa.pid AND NOT granted
+                           ORDER BY relation NULLS LAST LIMIT 1
+                      ) l ON TRUE
+                      LEFT JOIN pg_class c ON c.oid = l.relation
+                      LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+                     ORDER BY wait_age_secs DESC
+                    """;
+        }
         String v = dbVersion == null ? "" : dbVersion.trim();
         if (v.startsWith("5.6")) {
             // 5.6 无 sys schema：information_schema 三表 JOIN 还原阻塞链

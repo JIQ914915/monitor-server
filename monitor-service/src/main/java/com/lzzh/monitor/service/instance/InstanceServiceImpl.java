@@ -216,6 +216,7 @@ public class InstanceServiceImpl implements InstanceService {
     public Long create(InstanceRequest request) {
         validateDatabaseSelection(request.getDbTypeId(), request.getDbVersionId());
         DbInstance instance = InstanceConverter.toEntity(request);
+        normalizePgObjectScope(instance);
         if (StringUtils.hasText(instance.getConnPassword())) {
             instance.setConnPassword(passwordCipher.encrypt(instance.getConnPassword()));
         }
@@ -241,6 +242,7 @@ public class InstanceServiceImpl implements InstanceService {
         }
         validateDatabaseSelection(existing.getDbTypeId(), existing.getDbVersionId());
         DbInstance instance = InstanceConverter.toEntity(request);
+        normalizePgObjectScope(instance);
         instance.setDbTypeId(existing.getDbTypeId());
         instance.setDbVersionId(existing.getDbVersionId());
         if (instance.getConnPassword() != null && instance.getConnPassword().isBlank()) {
@@ -258,6 +260,21 @@ public class InstanceServiceImpl implements InstanceService {
         runtimeMetadataService.refresh(request.getId());
     }
 
+    private static void normalizePgObjectScope(DbInstance instance) {
+        String scope = StringUtils.hasText(instance.getPgObjectScope())
+                ? instance.getPgObjectScope().trim().toLowerCase() : "monitoring";
+        if (!Set.of("monitoring", "selected", "all").contains(scope)) {
+            throw new BusinessException("非法的PG对象级采集范围：" + scope);
+        }
+        List<String> databases = instance.getPgObjectDatabases() == null ? List.of()
+                : instance.getPgObjectDatabases().stream()
+                    .filter(StringUtils::hasText).map(String::trim).distinct().limit(100).toList();
+        if ("selected".equals(scope) && databases.isEmpty()) {
+            throw new BusinessException("PG对象级采集范围为 selected 时至少选择一个数据库");
+        }
+        instance.setPgObjectScope(scope);
+        instance.setPgObjectDatabases(databases);
+    }
     @Override
     @Transactional
     public void delete(Long id) {

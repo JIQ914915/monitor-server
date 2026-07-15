@@ -34,6 +34,7 @@ import com.lzzh.monitor.collector.spi.model.CollectResult;
 import com.lzzh.monitor.collector.spi.model.LongConnPoint;
 import com.lzzh.monitor.collector.spi.model.MetricPoint;
 import com.lzzh.monitor.collector.spi.model.ObjectMetricPoint;
+import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
 import com.lzzh.monitor.collector.spi.model.SlowSqlSamplePoint;
 import com.lzzh.monitor.collector.spi.model.TextMetricPoint;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
@@ -48,6 +49,7 @@ import com.lzzh.monitor.dao.ts.TsCapacityObjectWriter;
 import com.lzzh.monitor.dao.ts.TsLongConnWriter;
 import com.lzzh.monitor.dao.ts.TsMetricWriter;
 import com.lzzh.monitor.dao.ts.TsParamQueryDao;
+import com.lzzh.monitor.dao.ts.TsPgQueryStatWriter;
 import com.lzzh.monitor.dao.ts.TsSlowSqlSampleWriter;
 import com.lzzh.monitor.dao.ts.TsTextWriter;
 import com.lzzh.monitor.dao.ts.TsTopSqlWriter;
@@ -73,6 +75,8 @@ public class CollectRunner {
     private TsTextWriter tsTextWriter;
     @Resource
     private TsTopSqlWriter tsTopSqlWriter;
+    @Resource
+    private TsPgQueryStatWriter tsPgQueryStatWriter;
     @Resource
     private TsCapacityObjectWriter tsCapacityObjectWriter;
     @Resource
@@ -470,6 +474,7 @@ public class CollectRunner {
         writeText(instanceId, frequency, result.getTextPoints());
         writeObjects(instanceId, result.getObjectPoints());
         writeTopSql(instanceId, result.getTopSqlPoints());
+        writePgQueryStats(instanceId, result.getPgQueryStatPoints());
         writeLongConns(instanceId, result.getLongConnPoints());
         writeSlowSqlSamples(instanceId, result.getSlowSqlSamplePoints());
     }
@@ -535,6 +540,17 @@ public class CollectRunner {
         tsLongConnWriter.batchWrite(instanceId, rows);
     }
 
+    private void writePgQueryStats(Long instanceId, List<PgQueryStatPoint> points) {
+        if (points == null || points.isEmpty()) return;
+        List<TsPgQueryStatWriter.TsPgQueryStatPoint> rows = points.stream()
+                .map(p -> new TsPgQueryStatWriter.TsPgQueryStatPoint(
+                        p.databaseName(), p.userName(), p.queryId(), p.queryText(),
+                        p.deltaCalls(), p.deltaExecTimeMs(), p.deltaRows(),
+                        cn.hutool.json.JSONUtil.toJsonStr(p.metrics()),
+                        p.statsReset(), p.deallocations(), p.timestampMillis()))
+                .toList();
+        tsPgQueryStatWriter.batchWrite(instanceId, rows);
+    }
     private void writeTopSql(Long instanceId, List<TopSqlPoint> points) {
         if (points == null || points.isEmpty()) {
             return;

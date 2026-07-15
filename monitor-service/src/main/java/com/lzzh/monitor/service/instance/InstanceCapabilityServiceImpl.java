@@ -1,5 +1,6 @@
 package com.lzzh.monitor.service.instance;
 
+import com.lzzh.monitor.api.response.CollectTargetVo;
 import com.lzzh.monitor.api.response.InstanceCapabilityVo;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.CollectLog;
@@ -7,13 +8,16 @@ import com.lzzh.monitor.dao.entity.DbInstance;
 import com.lzzh.monitor.dao.mapper.CollectLogMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.ts.TsMetricLatestDao;
+import com.lzzh.monitor.service.datascope.DataScopeService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 实例运行时能力状态检测实现。
@@ -51,9 +55,18 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
     private CollectLogMapper collectLogMapper;
     @Resource
     private TsMetricLatestDao metricLatestDao;
+    @Resource
+    private DataScopeService dataScopeService;
+    @Resource
+    private InstanceService instanceService;
+    @Resource
+    private PostgreSqlCapabilityProbe postgreSqlCapabilityProbe;
 
     @Override
     public List<InstanceCapabilityVo> detect(Long instanceId) {
+        if (instanceId == null || !dataScopeService.currentScope().allows(instanceId)) {
+            throw new BusinessException("无权访问该实例");
+        }
         DbInstance ins = instanceMapper.selectById(instanceId);
         if (ins == null) {
             throw new BusinessException("实例不存在");
@@ -61,7 +74,9 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
         String dbTypeCode = metadata.dbTypeCode();
         if ("POSTGRESQL".equals(dbTypeCode)) {
-            return detectPostgreSql(ins);
+            List<InstanceCapabilityVo> capabilities = detectPostgreSql(ins, metadata.dbVersion());
+            persistPostgreSqlCapabilities(instanceId, capabilities);
+            return capabilities;
         }
         if (!"MYSQL".equals(dbTypeCode)) {
             return List.of(InstanceCapabilityVo.of("database", "数据库类型", VERSION_NOT_SUPPORT,
@@ -163,7 +178,7 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
      * Top SQL 依赖 pg_stat_statements 扩展（按天级探测指标动态判定并给安装引导）；
      * 慢 SQL 样本与等待事件基于 pg_stat_activity 采样，无扩展依赖。
      */
-    private List<InstanceCapabilityVo> detectPostgreSql(DbInstance ins) {
+    private List<InstanceCapabilityVo> detectPostgreSql(DbInstance ins, String version) {
         CollectLog latest1m = latestLog(ins.getId(), "1m");
         List<InstanceCapabilityVo> list = new ArrayList<>();
         list.add(collectCapability(ins, latest1m));
@@ -198,9 +213,28 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         } else {
             list.add(InstanceCapabilityVo.of("host_metrics", "主机资源监控", AVAILABLE, null));
         }
+        CollectTargetVo target = instanceService.getCollectTarget(ins.getId());
+        if (target != null) {
+            list.addAll(postgreSqlCapabilityProbe.probe(target, version));
+        }
         return list;
     }
 
+    private void persistPostgreSqlCapabilities(Long instanceId, List<InstanceCapabilityVo> capabilities) {
+        List<Map<String, Object>> snapshot = capabilities.stream().map(capability -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("capability", capability.getCapability());
+            item.put("name", capability.getName());
+            item.put("status", capability.getStatus());
+            item.put("message", capability.getMessage());
+            return item;
+        }).toList();
+        DbInstance update = new DbInstance();
+        update.setId(instanceId);
+        update.setPgCapabilities(snapshot);
+        update.setPgCapabilitiesDetectedAt(OffsetDateTime.now());
+        instanceMapper.updateById(update);
+    }
     /** 采集状态能力：暂停 → 不适用；最新失败 → 采集异常；无日志/停滞 → 数据不足。 */
     private InstanceCapabilityVo collectCapability(DbInstance ins, CollectLog latest1m) {
         if ("paused".equals(ins.getStatus())) {

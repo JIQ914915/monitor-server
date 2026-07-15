@@ -11,7 +11,9 @@ public class PgVersionResolver {
 
     public PgVersionResolver() {
         delegate.register(new Pg13Adapter());
-        // 新版本出现字段差异时：new Pg17Adapter() 在此注册
+        delegate.register(new Pg16Adapter());
+        delegate.register(new Pg17Adapter());
+        delegate.register(new Pg18Adapter());
     }
 
     public PgVersionAdapter resolve(String version) {

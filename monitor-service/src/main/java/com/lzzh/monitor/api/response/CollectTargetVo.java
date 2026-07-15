@@ -52,6 +52,9 @@ public class CollectTargetVo {
             example = "mydb")
     private String databaseName;
 
+    private String pgObjectScope;
+    private java.util.List<String> pgObjectDatabases;
+
     @Schema(description = "连接来源白名单（IP 精确或 \"10.0.1.*\" 前缀通配；空 = 未启用来源检测）")
     private java.util.List<String> connSourceWhitelist;
 }

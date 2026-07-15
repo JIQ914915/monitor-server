@@ -57,6 +57,12 @@ public class InstanceVo {
     @Schema(description = "连接目标数据库名（采集建连时替换 URL 模板中的 {database}）", example = "mydb")
     private String databaseName;
 
+    @Schema(description = "PG对象级采集范围：monitoring / selected / all")
+    private String pgObjectScope;
+
+    @Schema(description = "PG对象级采集选定数据库列表")
+    private List<String> pgObjectDatabases;
+
     @Schema(description = "所在主机 ID（host.id，可空）", example = "1")
     private Long hostId;
 

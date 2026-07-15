@@ -18,7 +18,7 @@ import java.sql.Statement;
  *   <li>pg.bgwriter.buffers_checkpoint_rate / buffers_clean_rate / buffers_backend_rate：
  *       三种途径的脏页刷盘速率（页/秒），backend 占比高说明后端进程被迫自己刷盘，共享缓冲区吃紧。</li>
  * </ul>
- * 版本说明：13–16 字段一致；PG 17 起检查点计数迁到 pg_stat_checkpointer，届时增加 Pg17Adapter 覆盖。
+ * 本本说明：13–16 字段一致；PG 17 起检查点计数迁到 pg_stat_checkpointer，届时增加 Pg17Adapter 覆盖。
  */
 @Component
 public class PgCheckpointItem implements PgMetricItem {
@@ -40,16 +40,13 @@ public class PgCheckpointItem implements PgMetricItem {
         long ts = System.currentTimeMillis();
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(DEFAULT_QUERY_TIMEOUT_SECONDS);
-            try (ResultSet rs = st.executeQuery("""
-                    SELECT checkpoints_timed, checkpoints_req,
-                           buffers_checkpoint, buffers_clean, buffers_backend
-                      FROM pg_stat_bgwriter
-                    """)) {
+            try (ResultSet rs = st.executeQuery(adapter.checkpointSql())) {
+
                 if (!rs.next()) {
                     return;
                 }
-                addDelta(sink, "pg.ckpt.timed_delta", instanceId, rs.getLong("checkpoints_timed"), ts);
-                addDelta(sink, "pg.ckpt.req_delta", instanceId, rs.getLong("checkpoints_req"), ts);
+                addDelta(sink, "pg.ckpt.timed_delta", instanceId, rs.getLong("timed"), ts);
+                addDelta(sink, "pg.ckpt.req_delta", instanceId, rs.getLong("requested"), ts);
                 addRate(sink, "pg.bgwriter.buffers_checkpoint_rate", instanceId, rs.getLong("buffers_checkpoint"), ts);
                 addRate(sink, "pg.bgwriter.buffers_clean_rate", instanceId, rs.getLong("buffers_clean"), ts);
                 addRate(sink, "pg.bgwriter.buffers_backend_rate", instanceId, rs.getLong("buffers_backend"), ts);

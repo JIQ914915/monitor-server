@@ -6,7 +6,7 @@ import lombok.Data;
 /**
  * 实例监控能力状态（需求 §20：能力矩阵 + 页面降级）。
  * status 取值由字典 capability_status 统一维护：
- * available / limited / version_not_support / not_applicable / collect_error / no_data。
+ * available / limited / permission_denied / version_not_support / not_applicable / collect_error / no_data。
  */
 @Data
 @Schema(description = "实例监控能力状态（status 见字典 capability_status）")

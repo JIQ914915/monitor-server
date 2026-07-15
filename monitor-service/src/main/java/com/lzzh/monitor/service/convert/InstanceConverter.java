@@ -37,6 +37,8 @@ public final class InstanceConverter {
         v.setDbType(dbType);
         v.setDbVersion(dbVersion);
         v.setDatabaseName(e.getDatabaseName());
+        v.setPgObjectScope(e.getPgObjectScope());
+        v.setPgObjectDatabases(e.getPgObjectDatabases());
         v.setHostId(e.getHostId());
         v.setRemark(e.getRemark());
         v.setGroupIds(e.getGroupIds());
@@ -64,6 +66,8 @@ public final class InstanceConverter {
         e.setDbTypeId(r.getDbTypeId());
         e.setDbVersionId(r.getDbVersionId());
         e.setDatabaseName(r.getDatabaseName());
+        e.setPgObjectScope(r.getPgObjectScope());
+        e.setPgObjectDatabases(r.getPgObjectDatabases());
         e.setHostId(r.getHostId());
         e.setRemark(r.getRemark());
         e.setGroupIds(r.getGroupIds());
@@ -106,6 +110,8 @@ public final class InstanceConverter {
         t.setConnPassword(e.getConnPassword());
         t.setStatus(e.getStatus());
         t.setDatabaseName(e.getDatabaseName());
+        t.setPgObjectScope(e.getPgObjectScope());
+        t.setPgObjectDatabases(e.getPgObjectDatabases());
         t.setConnSourceWhitelist(e.getConnSourceWhitelist());
         return t;
     }

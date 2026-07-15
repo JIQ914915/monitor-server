@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.PgDiagnosticMapper">
+  <sql id="analyticsColumns">
+    database_name, user_name, query_id, max(query_text) AS query_text,
+    sum(delta_calls) AS calls, sum(delta_exec_time_ms) AS total_exec_time_ms,
+    CASE WHEN sum(delta_calls)>0 THEN sum(delta_exec_time_ms)/sum(delta_calls) ELSE 0 END AS avg_exec_time_ms,
+    max(COALESCE((metrics->>'min_exec_time_ms')::double precision,0)) AS min_exec_time_ms,
+    max(COALESCE((metrics->>'max_exec_time_ms')::double precision,0)) AS max_exec_time_ms,
+    max(COALESCE((metrics->>'stddev_exec_time_ms')::double precision,0)) AS stddev_exec_time_ms,
+    sum(COALESCE((metrics->>'plans')::double precision,0)) AS plan_count,
+    sum(COALESCE((metrics->>'total_plan_time')::double precision,0)) AS total_plan_time_ms,
+    sum(COALESCE((metrics->>'shared_blks_hit')::double precision,0)) AS shared_hit,
+    sum(COALESCE((metrics->>'shared_blks_read')::double precision,0)) AS shared_read,
+    sum(COALESCE((metrics->>'shared_blks_dirtied')::double precision,0)) AS shared_dirtied,
+    sum(COALESCE((metrics->>'shared_blks_written')::double precision,0)) AS shared_written,
+    sum(COALESCE((metrics->>'local_blks_hit')::double precision,0)) AS local_hit,
+    sum(COALESCE((metrics->>'local_blks_read')::double precision,0)) AS local_read,
+    sum(COALESCE((metrics->>'temp_blks_read')::double precision,0)) AS temp_read,
+    sum(COALESCE((metrics->>'temp_blks_written')::double precision,0)) AS temp_written,
+    CASE WHEN max(COALESCE((metrics->>'io_timing_enabled')::double precision,0))>0
+      THEN sum(COALESCE((metrics->>'blk_read_time')::double precision,0)) END AS block_read_time_ms,
+    CASE WHEN max(COALESCE((metrics->>'io_timing_enabled')::double precision,0))>0
+      THEN sum(COALESCE((metrics->>'blk_write_time')::double precision,0)) END AS block_write_time_ms,
+    sum(COALESCE((metrics->>'wal_records')::double precision,0)) AS wal_records,
+    sum(COALESCE((metrics->>'wal_fpi')::double precision,0)) AS wal_fpi,
+    sum(COALESCE((metrics->>'wal_bytes')::double precision,0)) AS wal_bytes,
+    sum(COALESCE((metrics->>'jit_functions')::double precision,0)) AS jit_functions,
+    sum(COALESCE((metrics->>'jit_generation_time')::double precision,0)
+       +COALESCE((metrics->>'jit_inlining_time')::double precision,0)
+       +COALESCE((metrics->>'jit_optimization_time')::double precision,0)
+       +COALESCE((metrics->>'jit_emission_time')::double precision,0)) AS jit_time_ms,
+    sum(delta_rows) AS rows, min(collect_time) AS first_seen, max(collect_time) AS last_seen,
+    max(stats_reset) AS stats_reset,
+    GREATEST(0, max(deallocations)-min(deallocations)) AS deallocations
+  </sql>
+
+  <select id="selectQueryAnalytics" resultType="java.util.Map">
+    SELECT <include refid="analyticsColumns"/>
+    FROM pg_query_stat_history
+    WHERE instance_id=#{instanceId} AND collect_time BETWEEN #{from} AND #{to}
+    <if test="database != null and database != ''">AND database_name=#{database}</if>
+    <if test="user != null and user != ''">AND user_name=#{user}</if>
+    <if test="queryId != null and queryId != ''">AND query_id=#{queryId}</if>
+    GROUP BY database_name,user_name,query_id
+    ORDER BY ${orderBy}
+    LIMIT #{limit}
+  </select>
+
+  <select id="selectRegressionCandidates" resultType="java.util.Map">
+    WITH current_window AS (
+      SELECT database_name,query_id,max(query_text) query_text,
+             sum(delta_calls)::double precision calls,
+             sum(delta_exec_time_ms)/NULLIF(sum(delta_calls),0) avg_exec_ms,
+             sum(COALESCE((metrics->>'total_plan_time')::double precision,0))
+               /NULLIF(sum(COALESCE((metrics->>'plans')::double precision,0)),0) avg_plan_ms,
+             sum(COALESCE((metrics->>'temp_blks_written')::double precision,0)) temp_written,
+             sum(COALESCE((metrics->>'wal_bytes')::double precision,0)) wal_bytes,
+             max(COALESCE((metrics->>'stddev_exec_time_ms')::double precision,0)) stddev_exec_ms
+        FROM pg_query_stat_history
+       WHERE instance_id=#{instanceId} AND collect_time BETWEEN #{currentFrom} AND #{currentTo}
+       GROUP BY database_name,query_id
+    ), baseline_hourly AS (
+      SELECT database_name,query_id,date_trunc('hour',collect_time) bucket,
+             sum(delta_calls)::double precision calls,
+             sum(delta_exec_time_ms)/NULLIF(sum(delta_calls),0) avg_exec_ms,
+             sum(COALESCE((metrics->>'total_plan_time')::double precision,0))
+               /NULLIF(sum(COALESCE((metrics->>'plans')::double precision,0)),0) avg_plan_ms,
+             sum(COALESCE((metrics->>'temp_blks_written')::double precision,0)) temp_written,
+             sum(COALESCE((metrics->>'wal_bytes')::double precision,0)) wal_bytes,
+             max(COALESCE((metrics->>'stddev_exec_time_ms')::double precision,0)) stddev_exec_ms
+        FROM pg_query_stat_history
+       WHERE instance_id=#{instanceId} AND collect_time BETWEEN #{baselineFrom} AND #{baselineTo}
+         AND EXTRACT(ISODOW FROM collect_time)=EXTRACT(ISODOW FROM CAST(#{currentFrom} AS timestamp))
+         AND EXTRACT(HOUR FROM collect_time)=EXTRACT(HOUR FROM CAST(#{currentFrom} AS timestamp))
+       GROUP BY database_name,query_id,date_trunc('hour',collect_time)
+    ), baseline AS (
+      SELECT database_name,query_id,avg(calls) calls,avg(avg_exec_ms) avg_exec_ms,
+             avg(avg_plan_ms) avg_plan_ms,avg(temp_written) temp_written,
+             avg(wal_bytes) wal_bytes,avg(stddev_exec_ms) stddev_exec_ms
+        FROM baseline_hourly GROUP BY database_name,query_id
+    )
+    SELECT c.*,b.calls baseline_calls,b.avg_exec_ms baseline_avg_exec_ms,
+           b.avg_plan_ms baseline_avg_plan_ms,b.temp_written baseline_temp_written,
+           b.wal_bytes baseline_wal_bytes,b.stddev_exec_ms baseline_stddev_exec_ms,
+           (SELECT max(h.collect_time) FROM pg_query_stat_history h
+             WHERE h.instance_id=#{instanceId}
+               AND h.database_name IS NOT DISTINCT FROM c.database_name
+               AND h.query_id=c.query_id AND h.collect_time &lt; #{baselineFrom}) last_seen_before_baseline
+      FROM current_window c LEFT JOIN baseline b
+        ON b.database_name IS NOT DISTINCT FROM c.database_name AND b.query_id=c.query_id
+  </select>
+
+  <insert id="upsertRegression">
+    INSERT INTO pg_sql_regression_event
+      (instance_id,database_name,query_id,query_text,regression_type,severity,
+       baseline_from,baseline_to,current_from,current_to,baseline_value,current_value,
+       change_ratio,evidence,detected_at)
+    VALUES
+      (#{event.instanceId},#{event.database},#{event.queryId},#{event.queryText},
+       #{event.type},#{event.severity},#{event.baselineFrom},#{event.baselineTo},
+       #{event.currentFrom},#{event.currentTo},#{event.baselineValue},
+       #{event.currentValue},#{event.changeRatio},CAST(#{event.evidenceJson} AS jsonb),now())
+    ON CONFLICT(instance_id,query_id,regression_type,current_from) DO UPDATE SET
+      current_value=EXCLUDED.current_value,change_ratio=EXCLUDED.change_ratio,
+      evidence=EXCLUDED.evidence,detected_at=now()
+  </insert>
+
+  <select id="selectRegressionEvents" resultType="java.util.Map">
+    SELECT id,database_name,query_id,query_text,regression_type,severity,
+           baseline_from,baseline_to,current_from,current_to,baseline_value,
+           current_value,change_ratio,evidence,detected_at
+      FROM pg_sql_regression_event WHERE instance_id=#{instanceId}
+     ORDER BY detected_at DESC LIMIT #{limit}
+  </select>
+
+  <select id="selectLatestPlan" resultType="java.util.Map">
+    SELECT id,plan_hash,node_summary,captured_at FROM pg_plan_history
+     WHERE instance_id=#{instanceId} AND database_name=#{database} AND query_id=#{queryId}
+     ORDER BY captured_at DESC LIMIT 1
+  </select>
+
+  <insert id="insertPlan" useGeneratedKeys="true" keyProperty="plan.id">
+    INSERT INTO pg_plan_history
+      (instance_id,database_name,query_id,sql_hash,plan_hash,query_text,
+       plan_json,node_summary,previous_plan_hash,plan_changed,captured_at)
+    VALUES
+      (#{plan.instanceId},#{plan.database},#{plan.queryId},#{plan.sqlHash},#{plan.planHash},
+       #{plan.queryText},CAST(#{plan.planJson} AS jsonb),CAST(#{plan.summaryJson} AS jsonb),
+       #{plan.previousPlanHash},#{plan.planChanged},now())
+    ON CONFLICT(instance_id,database_name,query_id,plan_hash) DO NOTHING
+  </insert>
+
+  <select id="selectPlanHistory" resultType="java.util.Map">
+    SELECT id,database_name,query_id,sql_hash,plan_hash,previous_plan_hash,
+           plan_changed,plan_json,node_summary,captured_at
+      FROM pg_plan_history
+     WHERE instance_id=#{instanceId} AND database_name=#{database} AND query_id=#{queryId}
+     ORDER BY captured_at DESC LIMIT #{limit}
+  </select>
+</mapper>

@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.postgresql.item;
 
 import com.lzzh.monitor.collector.spi.model.MetricPoint;
 import com.lzzh.monitor.collector.spi.model.ObjectMetricPoint;
+import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
 import com.lzzh.monitor.collector.spi.model.SlowSqlSamplePoint;
 import com.lzzh.monitor.collector.spi.model.TextMetricPoint;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
@@ -24,6 +25,7 @@ public class PgMetricSink {
     private final List<TextMetricPoint> text = new ArrayList<>();
     private final List<ObjectMetricPoint> objects = new ArrayList<>();
     private final List<TopSqlPoint> topSql = new ArrayList<>();
+    private final List<PgQueryStatPoint> pgQueryStats = new ArrayList<>();
     private final List<SlowSqlSamplePoint> slowSqlSamples = new ArrayList<>();
     private final List<ItemError> itemErrors = new ArrayList<>();
 
@@ -45,6 +47,14 @@ public class PgMetricSink {
 
     public void addTopSql(TopSqlPoint point) {
         topSql.add(point);
+    }
+
+    public void addPgQueryStat(PgQueryStatPoint point) {
+        pgQueryStats.add(point);
+    }
+
+    public List<PgQueryStatPoint> pgQueryStats() {
+        return pgQueryStats;
     }
 
     public void addSlowSqlSample(SlowSqlSamplePoint point) {

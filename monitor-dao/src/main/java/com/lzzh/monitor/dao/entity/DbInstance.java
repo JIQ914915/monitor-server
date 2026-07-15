@@ -36,6 +36,20 @@ public class DbInstance {
     /** 连接目标数据库名（如 mydb），采集侧建连时替换 URL 模板中的 {database} 占位符。 */
     private String databaseName;
 
+    /** PG对象级采集范围：monitoring / selected / all。 */
+    private String pgObjectScope;
+
+    /** PG对象级采集选定数据库列表。 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> pgObjectDatabases;
+
+    /** 最近一次 PG 能力探测快照。 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<Map<String, Object>> pgCapabilities;
+
+    /** 最近一次 PG 能力探测时间。 */
+    private OffsetDateTime pgCapabilitiesDetectedAt;
+
     /** 所在主机ID（外键 host.id，可空）；关联后主机 host.* 指标扇出写入该实例。 */
     private Long hostId;
 

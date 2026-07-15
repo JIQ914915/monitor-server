@@ -27,4 +27,12 @@ public interface PgVersionAdapter extends VersionAdapter {
 
     /** 容量：当前库与全实例的字节大小（小时级）。 */
     String capacitySql();
+
+    /** 检查点与后台写入统计，统一输出归一化列名。 */
+    String checkpointSql();
+
+    /** pg_stat_io 汇总 SQL；版本不支持时返回 null。 */
+    default String statIoSql() {
+        return null;
+    }
 }
