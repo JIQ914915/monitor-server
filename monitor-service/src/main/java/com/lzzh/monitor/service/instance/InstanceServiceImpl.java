@@ -804,7 +804,7 @@ public class InstanceServiceImpl implements InstanceService {
                 "GRANT " + serverPermission + " TO <monitor_login>;"));
         checks.add(ConnectionTestVo.PermissionCheck.of(
                 databasePermission + " 权限",
-                probeSelect(conn, "SELECT TOP (1) database_id FROM sys.dm_db_log_space_usage"),
+                probeSelect(conn, "SELECT TOP (1) used_log_space_in_percent FROM sys.dm_db_log_space_usage"),
                 "事务日志、数据库空间与 Query Store 诊断",
                 "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
         checks.add(ConnectionTestVo.PermissionCheck.of(

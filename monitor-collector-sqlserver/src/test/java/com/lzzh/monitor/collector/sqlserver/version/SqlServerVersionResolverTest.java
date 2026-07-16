@@ -28,8 +28,18 @@ class SqlServerVersionResolverTest {
             SqlServerVersionAdapter adapter = resolver.resolve(version);
             assertThat(adapter.identitySql()).contains("SERVERPROPERTY", "sys.dm_os_sys_info");
             assertThat(adapter.queryStoreCapabilitySql())
-                    .contains("sys.database_query_store_options")
-                    .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ");
+                    .contains("sys.database_query_store_options");
+            assertThat(adapter.performanceCountersSql())
+                    .contains("sys.dm_os_performance_counters", "Memory Grants Pending");
+            assertThat(adapter.runtimeSql())
+                    .contains("sys.dm_os_schedulers", "sys.dm_exec_requests");
+            assertThat(adapter.waitStatsSql()).contains("sys.dm_os_wait_stats", "wait_category");
+            assertThat(adapter.storageSql())
+                    .contains("sys.dm_io_virtual_file_stats", "sys.dm_db_log_space_usage");
+            assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
+                            adapter.performanceCountersSql(), adapter.runtimeSql(),
+                            adapter.waitStatsSql(), adapter.storageSql()))
+                    .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ", "INSERT ");
         }
     }
 }
