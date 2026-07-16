@@ -62,6 +62,8 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
     @Resource
     private PostgreSqlCapabilityProbe postgreSqlCapabilityProbe;
     @Resource
+    private SqlServerCapabilityProbe sqlServerCapabilityProbe;
+    @Resource
     private MySqlCapabilityProbe mySqlCapabilityProbe;
 
     @Override
@@ -78,6 +80,11 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         if ("POSTGRESQL".equals(dbTypeCode)) {
             List<InstanceCapabilityVo> capabilities = detectPostgreSql(ins, metadata.dbVersion());
             persistPostgreSqlCapabilities(instanceId, capabilities);
+            return capabilities;
+        }
+        if ("SQLSERVER".equals(dbTypeCode)) {
+            List<InstanceCapabilityVo> capabilities = detectSqlServer(ins, metadata.dbVersion());
+            persistSqlServerCapabilities(instanceId, capabilities);
             return capabilities;
         }
         if (!"MYSQL".equals(dbTypeCode)) {
@@ -177,6 +184,27 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         return list;
     }
 
+    /** SQL Server 基础能力清单：先给出平台能力，再合并目标实例的实时探测结果。 */
+    private List<InstanceCapabilityVo> detectSqlServer(DbInstance ins, String version) {
+        List<InstanceCapabilityVo> list = new ArrayList<>();
+        list.add(collectCapability(ins, latestLog(ins.getId(), "1m")));
+        list.add(InstanceCapabilityVo.of("connections", "连接、会话与事务监控", AVAILABLE, null));
+        list.add(InstanceCapabilityVo.of("waits", "等待与调度器监控", AVAILABLE, null));
+        list.add(InstanceCapabilityVo.of("storage", "数据文件、事务日志与 tempdb", AVAILABLE, null));
+        list.add(InstanceCapabilityVo.of("blocking", "阻塞链与死锁诊断", AVAILABLE, null));
+        if (ins.getHostId() == null) {
+            list.add(InstanceCapabilityVo.of("host_metrics", "主机资源监控", NOT_APPLICABLE,
+                    "未关联主机：数据库侧监控可用，但无法确认宿主 CPU、内存、磁盘和网络压力"));
+        } else {
+            list.add(InstanceCapabilityVo.of("host_metrics", "主机资源监控", AVAILABLE, null));
+        }
+        CollectTargetVo target = instanceService.getCollectTarget(ins.getId());
+        if (target != null) {
+            list.addAll(sqlServerCapabilityProbe.probe(target, version));
+        }
+        return list;
+    }
+
     /** 扩展探测指标（PgExtensionsItem，天级）：0=未启用 1=差一步 2=就绪。 */
     private static final String PG_STAT_STATEMENTS_METRIC = "pg.ext.pg_stat_statements";
 
@@ -258,6 +286,22 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         update.setPgCapabilitiesDetectedAt(OffsetDateTime.now());
         instanceMapper.updateById(update);
     }
+    private void persistSqlServerCapabilities(Long instanceId, List<InstanceCapabilityVo> capabilities) {
+        List<Map<String, Object>> snapshot = capabilities.stream().map(capability -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("capability", capability.getCapability());
+            item.put("name", capability.getName());
+            item.put("status", capability.getStatus());
+            item.put("message", capability.getMessage());
+            return item;
+        }).toList();
+        DbInstance update = new DbInstance();
+        update.setId(instanceId);
+        update.setSqlserverCapabilities(snapshot);
+        update.setSqlserverCapabilitiesDetectedAt(OffsetDateTime.now());
+        instanceMapper.updateById(update);
+    }
+
     /** 采集状态能力：暂停 → 不适用；最新失败 → 采集异常；无日志/停滞 → 数据不足。 */
     private InstanceCapabilityVo collectCapability(DbInstance ins, CollectLog latest1m) {
         if ("paused".equals(ins.getStatus())) {

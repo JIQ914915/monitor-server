@@ -631,6 +631,8 @@ public class InstanceServiceImpl implements InstanceService {
                 vo.setChecks(checkMySqlPrivileges(conn, version, req.getConnUser()));
             } else if ("postgresql".equalsIgnoreCase(dbType)) {
                 vo.setChecks(checkPostgreSqlPrivileges(conn, req.getConnUser()));
+            } else if ("sqlserver".equalsIgnoreCase(dbType)) {
+                vo.setChecks(checkSqlServerPrivileges(conn));
             } else {
                 vo.setChecks(List.of());
             }
@@ -783,6 +785,46 @@ public class InstanceServiceImpl implements InstanceService {
         return checks;
     }
 
+    /** SQL Server 分级只读能力探测；2022+ 性能 DMV 使用新的 PERFORMANCE STATE 权限。 */
+    private List<ConnectionTestVo.PermissionCheck> checkSqlServerPrivileges(Connection conn) {
+        List<ConnectionTestVo.PermissionCheck> checks = new ArrayList<>();
+        int major = 0;
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int)")) {
+            if (rs.next()) major = rs.getInt(1);
+        } catch (SQLException e) {
+            log.warn("SQL Server 主版本探测失败: {}", e.getMessage());
+        }
+        String serverPermission = major >= 16 ? "VIEW SERVER PERFORMANCE STATE" : "VIEW SERVER STATE";
+        String databasePermission = major >= 16 ? "VIEW DATABASE PERFORMANCE STATE" : "VIEW DATABASE STATE";
+        checks.add(ConnectionTestVo.PermissionCheck.of(
+                serverPermission + " 权限",
+                probeSelect(conn, "SELECT TOP (1) scheduler_id FROM sys.dm_os_schedulers"),
+                "CPU 调度、内存、等待、会话、文件 I/O 与 Always On 性能监控",
+                "GRANT " + serverPermission + " TO <monitor_login>;"));
+        checks.add(ConnectionTestVo.PermissionCheck.of(
+                databasePermission + " 权限",
+                probeSelect(conn, "SELECT TOP (1) database_id FROM sys.dm_db_log_space_usage"),
+                "事务日志、数据库空间与 Query Store 诊断",
+                "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
+        checks.add(ConnectionTestVo.PermissionCheck.of(
+                "msdb 备份历史读取",
+                probeSelect(conn, "SELECT TOP (1) backup_set_id FROM msdb.dbo.backupset"),
+                "备份覆盖、新鲜度与恢复准备度",
+                "USE msdb; GRANT SELECT ON dbo.backupset TO <monitor_user>;"));
+        checks.add(ConnectionTestVo.PermissionCheck.of(
+                "Query Store 目录读取（可选）",
+                probeSelect(conn, "SELECT TOP (1) actual_state FROM sys.database_query_store_options"),
+                "Top SQL 历史、计划变化、性能回退与 SQL 等待",
+                "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
+        checks.add(ConnectionTestVo.PermissionCheck.of(
+                "Always On 状态读取（可选）",
+                probeSelect(conn, "SELECT TOP (1) replica_id FROM sys.dm_hadr_availability_replica_states"),
+                "可用组副本连接、同步健康、发送与重做队列",
+                "GRANT " + serverPermission + " TO <monitor_login>;"));
+        return checks;
+    }
+
     /** 探测查询：能查到/查空都算有权限，报错视为无权限（超时视为无法确认）。 */
     private Boolean probeSelect(Connection conn, String sql) {
         try (Statement st = conn.createStatement()) {
@@ -824,7 +866,8 @@ public class InstanceServiceImpl implements InstanceService {
                     + "?connectTimeout=5&socketTimeout=8";
             case "oracle" -> "jdbc:oracle:thin:@" + host + ":" + port + ":orcl";
             case "sqlserver" -> "jdbc:sqlserver://" + host + ":" + port
-                    + ";encrypt=false;loginTimeout=5";
+                    + ";databaseName=" + (StringUtils.hasText(req.getDatabaseName()) ? req.getDatabaseName() : "master")
+                    + ";encrypt=false;loginTimeout=5;socketTimeout=8000;applicationName=monitor-admin";
             default -> throw new BusinessException("暂不支持的数据库类型：" + dbType);
         };
     }

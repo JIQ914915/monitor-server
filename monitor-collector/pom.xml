@@ -31,6 +31,10 @@
             <groupId>com.lzzh</groupId>
             <artifactId>monitor-collector-postgresql</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.lzzh</groupId>
+            <artifactId>monitor-collector-sqlserver</artifactId>
+        </dependency>
         <!-- 主机（OS）指标采集：node_exporter 拉取 -->
         <dependency>
             <groupId>com.lzzh</groupId>

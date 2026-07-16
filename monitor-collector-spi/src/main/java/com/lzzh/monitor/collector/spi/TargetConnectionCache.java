@@ -296,6 +296,10 @@ public class TargetConnectionCache {
             props.setProperty("connectTimeout", String.valueOf(CONNECT_TIMEOUT_SECS));
             props.setProperty("socketTimeout", String.valueOf(SOCKET_TIMEOUT_SECS));
             props.setProperty("ApplicationName", "monitor-collector");
+        } else if (url.startsWith("jdbc:sqlserver:")) {
+            props.setProperty("loginTimeout", String.valueOf(CONNECT_TIMEOUT_SECS));
+            props.setProperty("socketTimeout", String.valueOf(SOCKET_TIMEOUT_SECS * 1000));
+            props.setProperty("applicationName", "monitor-collector");
         } else {
             props.setProperty("connectTimeout", String.valueOf(CONNECT_TIMEOUT_SECS * 1000));
             props.setProperty("socketTimeout", String.valueOf(SOCKET_TIMEOUT_SECS * 1000));

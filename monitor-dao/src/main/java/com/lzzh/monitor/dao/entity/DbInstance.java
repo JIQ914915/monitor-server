@@ -58,6 +58,13 @@ public class DbInstance {
 
     private OffsetDateTime mysqlCapabilitiesDetectedAt;
 
+    /** 最近一次 SQL Server 能力探测快照。 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<Map<String, Object>> sqlserverCapabilities;
+
+    /** 最近一次 SQL Server 能力探测时间。 */
+    private OffsetDateTime sqlserverCapabilitiesDetectedAt;
+
     /** 所在主机ID（外键 host.id，可空）；关联后主机 host.* 指标扇出写入该实例。 */
     private Long hostId;
 

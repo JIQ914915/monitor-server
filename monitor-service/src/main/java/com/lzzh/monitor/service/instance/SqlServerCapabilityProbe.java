@@ -1,0 +1,131 @@
+package com.lzzh.monitor.service.instance;
+
+import com.lzzh.monitor.api.response.CollectTargetVo;
+import com.lzzh.monitor.api.response.InstanceCapabilityVo;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+/** SQL Server 版本、Edition、权限和可选组件的只读实时探测。 */
+@Component
+public class SqlServerCapabilityProbe {
+    private static final String AVAILABLE = "available";
+    private static final String LIMITED = "limited";
+    private static final String PERMISSION_DENIED = "permission_denied";
+    private static final String VERSION_NOT_SUPPORT = "version_not_support";
+    private static final String COLLECT_ERROR = "collect_error";
+
+    public List<InstanceCapabilityVo> probe(CollectTargetVo target, String configuredVersion) {
+        List<InstanceCapabilityVo> result = new ArrayList<>();
+        try (Connection conn = open(target);
+             Statement st = conn.createStatement()) {
+            st.setQueryTimeout(5);
+            try (ResultSet rs = st.executeQuery("""
+                    SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int) AS major_version,
+                           CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)) AS product_version,
+                           CAST(SERVERPROPERTY('Edition') AS nvarchar(128)) AS edition,
+                           CAST(SERVERPROPERTY('EngineEdition') AS int) AS engine_edition,
+                           CAST(SERVERPROPERTY('IsHadrEnabled') AS int) AS hadr_enabled
+                    """)) {
+                if (rs.next()) {
+                    int major = rs.getInt("major_version");
+                    String version = rs.getString("product_version");
+                    result.add(versionCapability(major, version, configuredVersion));
+                    result.add(InstanceCapabilityVo.of("edition", "Edition 能力（" + rs.getString("edition") + "）",
+                            AVAILABLE, "EngineEdition=" + rs.getInt("engine_edition")));
+                    result.add(InstanceCapabilityVo.of("always_on", "Always On 可用组",
+                            rs.getInt("hadr_enabled") == 1 ? AVAILABLE : LIMITED,
+                            rs.getInt("hadr_enabled") == 1 ? null : "当前实例未启用 Always On；不会展示可用组告警"));
+                }
+            }
+            result.add(probe(conn, "server_performance_state", "服务器性能 DMV",
+                    "SELECT TOP (1) scheduler_id FROM sys.dm_os_schedulers",
+                    "缺少服务器性能状态权限，CPU、等待、内存、I/O 与 HA 诊断受限"));
+            result.add(probe(conn, "database_performance_state", "数据库性能 DMV",
+                    "SELECT TOP (1) database_id FROM sys.dm_db_log_space_usage",
+                    "缺少数据库性能状态权限，日志与数据库空间诊断受限"));
+            result.add(probe(conn, "backup_history", "备份历史",
+                    "SELECT TOP (1) backup_set_id FROM msdb.dbo.backupset",
+                    "无法读取 msdb 备份历史，备份覆盖与恢复准备度受限"));
+            result.add(queryStore(conn));
+        } catch (Exception e) {
+            result.add(InstanceCapabilityVo.of("live_probe", "实时能力探测",
+                    permissionDenied(e) ? PERMISSION_DENIED : COLLECT_ERROR,
+                    friendly(e)));
+        }
+        return result;
+    }
+
+    private InstanceCapabilityVo versionCapability(int major, String actual, String configured) {
+        String label = "版本支持状态（" + (actual == null ? configured : actual) + "）";
+        return switch (major) {
+            case 14, 15, 16, 17 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE, null);
+            case 13 -> InstanceCapabilityVo.of("version_support", label, VERSION_NOT_SUPPORT,
+                    "SQL Server 2016 仅在客户具备 ESU 且完成专项验证后条件兼容");
+            default -> InstanceCapabilityVo.of("version_support", label, VERSION_NOT_SUPPORT,
+                    "平台正式支持 SQL Server 2017、2019、2022、2025");
+        };
+    }
+
+    private InstanceCapabilityVo probe(Connection conn, String code, String name,
+                                       String sql, String deniedMessage) {
+        try (Statement st = conn.createStatement()) {
+            st.setQueryTimeout(5);
+            try (ResultSet ignored = st.executeQuery(sql)) {
+                return InstanceCapabilityVo.of(code, name, AVAILABLE, null);
+            }
+        } catch (Exception e) {
+            return InstanceCapabilityVo.of(code, name,
+                    permissionDenied(e) ? PERMISSION_DENIED : LIMITED,
+                    permissionDenied(e) ? deniedMessage : friendly(e));
+        }
+    }
+
+    private InstanceCapabilityVo queryStore(Connection conn) {
+        try (Statement st = conn.createStatement()) {
+            st.setQueryTimeout(5);
+            try (ResultSet rs = st.executeQuery(
+                    "SELECT actual_state_desc, readonly_reason FROM sys.database_query_store_options")) {
+                if (!rs.next()) {
+                    return InstanceCapabilityVo.of("query_store", "Query Store", LIMITED, "未返回 Query Store 状态");
+                }
+                String state = rs.getString(1);
+                return InstanceCapabilityVo.of("query_store", "Query Store",
+                        "READ_WRITE".equalsIgnoreCase(state) ? AVAILABLE : LIMITED,
+                        "READ_WRITE".equalsIgnoreCase(state) ? null
+                                : "当前数据库 Query Store 状态为 " + state + "，历史 SQL 与计划诊断受限");
+            }
+        } catch (Exception e) {
+            return InstanceCapabilityVo.of("query_store", "Query Store",
+                    permissionDenied(e) ? PERMISSION_DENIED : LIMITED, friendly(e));
+        }
+    }
+
+    private static Connection open(CollectTargetVo target) throws Exception {
+        DriverManager.setLoginTimeout(5);
+        String url = target.getUrlTemplate()
+                .replace("{host}", target.getHost())
+                .replace("{port}", String.valueOf(target.getPort()))
+                .replace("{database}", StringUtils.hasText(target.getDatabaseName())
+                        ? target.getDatabaseName() : "master");
+        return DriverManager.getConnection(url, target.getConnUser(), target.getConnPassword());
+    }
+
+    private static boolean permissionDenied(Exception e) {
+        String message = e.getMessage() == null ? "" : e.getMessage().toLowerCase();
+        return message.contains("permission") || message.contains("denied")
+                || message.contains("not have permission");
+    }
+
+    private static String friendly(Exception e) {
+        String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+        if (permissionDenied(e)) return "采集账号权限不足，请按实例版本授予最小性能状态读取权限";
+        return "实时探测失败：" + (message.length() > 200 ? message.substring(0, 200) : message);
+    }
+}

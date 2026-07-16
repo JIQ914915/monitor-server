@@ -19,6 +19,7 @@
         <module>monitor-collector-spi</module>
         <module>monitor-collector-mysql</module>
         <module>monitor-collector-postgresql</module>
+        <module>monitor-collector-sqlserver</module>
         <module>monitor-collector-host</module>
         <module>monitor-collector</module>
     </modules>
@@ -32,6 +33,7 @@
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <druid.version>1.2.28</druid.version>
         <postgresql.version>42.7.4</postgresql.version>
+        <mssql-jdbc.version>13.4.0.jre11</mssql-jdbc.version>
         <jjwt.version>0.12.6</jjwt.version>
         <!-- knife4j-next：社区维护 fork，5.x 系列原生支持 Spring Boot 4 / Spring Framework 7 -->
         <knife4j.version>5.0.11</knife4j.version>
@@ -86,6 +88,11 @@
             </dependency>
             <dependency>
                 <groupId>com.lzzh</groupId>
+                <artifactId>monitor-collector-sqlserver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.lzzh</groupId>
                 <artifactId>monitor-collector-host</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -110,6 +117,11 @@
                 <groupId>org.postgresql</groupId>
                 <artifactId>postgresql</artifactId>
                 <version>${postgresql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.microsoft.sqlserver</groupId>
+                <artifactId>mssql-jdbc</artifactId>
+                <version>${mssql-jdbc.version}</version>
             </dependency>
 
             <!-- JWT -->
