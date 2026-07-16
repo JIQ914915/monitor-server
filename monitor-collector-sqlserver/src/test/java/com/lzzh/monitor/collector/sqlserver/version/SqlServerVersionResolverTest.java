@@ -40,10 +40,13 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.dmvTopSql()).contains("sys.dm_exec_query_stats");
             assertThat(adapter.deadlockEventsSql()).contains("system_health", "xml_deadlock_report");
             assertThat(adapter.blockingChainSql()).contains("blocking_session_id");
+            assertThat(adapter.backupCoverageSql()).contains("msdb.dbo.backupset", "recovery_model_desc");
+            assertThat(adapter.alwaysOnHealthSql()).contains("sys.dm_hadr_database_replica_states", "log_send_queue_size");
             assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
                             adapter.performanceCountersSql(), adapter.runtimeSql(),
                             adapter.waitStatsSql(), adapter.storageSql(), adapter.queryStoreTopSql(),
-                            adapter.dmvTopSql(), adapter.deadlockEventsSql(), adapter.blockingChainSql()))
+                            adapter.dmvTopSql(), adapter.deadlockEventsSql(), adapter.blockingChainSql(),
+                            adapter.backupCoverageSql(), adapter.alwaysOnHealthSql()))
                     .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ", "INSERT ");
         }
     }

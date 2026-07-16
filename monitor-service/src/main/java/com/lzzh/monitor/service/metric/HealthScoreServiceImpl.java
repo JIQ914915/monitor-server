@@ -110,6 +110,16 @@ public class HealthScoreServiceImpl implements HealthScoreService {
             "pg.setting.statement_timeout_ms"
     );
 
+    private static final Set<String> SQLSERVER_METRICS_1M = Set.of(
+            "sqlserver.availability","sqlserver.uptime","sqlserver.scheduler.runnable_tasks",
+            "sqlserver.memory.grants_pending","sqlserver.blocked_sessions","sqlserver.deadlocks_per_sec",
+            "sqlserver.storage.log_used_percent","sqlserver.io.read_latency_ms","sqlserver.io.write_latency_ms",
+            "sqlserver.ag.disconnected_replicas","sqlserver.ag.unhealthy_databases",
+            "sqlserver.ag.suspended_databases","sqlserver.ag.max_send_seconds","sqlserver.ag.max_redo_seconds");
+    private static final Set<String> SQLSERVER_METRICS_1H = Set.of(
+            "sqlserver.backup.max_full_age_hours","sqlserver.backup.uncovered_database_count",
+            "sqlserver.backup.log_missing_database_count");
+
     /** max_connections 无数据时的连接使用率基准。 */
     private static final double DEFAULT_MAX_CONNECTIONS = 500;
 
@@ -128,7 +138,8 @@ public class HealthScoreServiceImpl implements HealthScoreService {
     private InstanceRuntimeMetadataService runtimeMetadataService;
     private final HealthScorePolicyRegistry policyRegistry = new HealthScorePolicyRegistry(List.of(
             new MySqlHealthScorePolicy(),
-            new PostgreSqlHealthScorePolicy()));
+            new PostgreSqlHealthScorePolicy(),
+            new SqlServerHealthScorePolicy()));
 
     @Override
     public HealthScoreVo calculate(Long instanceId) {
@@ -167,6 +178,11 @@ public class HealthScoreServiceImpl implements HealthScoreService {
             return calculatePg(instanceId);
         }
     }
+    private final class SqlServerHealthScorePolicy implements HealthScorePolicy {
+        @Override public DbType supportedType() { return DbType.SQLSERVER; }
+        @Override public HealthScoreVo calculate(Long instanceId) { return calculateSqlServer(instanceId); }
+    }
+
     private HealthScoreVo calculateMySql(Long instanceId) {
         Map<String, Double> m1 = latestDao.latestFrom1m(instanceId, METRICS_1M);
         Map<String, Double> m1h = latestDao.latestFrom1h(instanceId, METRICS_1H);
@@ -197,6 +213,38 @@ public class HealthScoreServiceImpl implements HealthScoreService {
         int scoreSecurity = calcPgSecurity(m1d, deductions);
 
         return assemble(instanceId, scoreAvail, scorePerf, scoreStability, scoreCapacity, scoreSecurity, deductions);
+    }
+
+    private HealthScoreVo calculateSqlServer(Long instanceId) {
+        Map<String,Double> m=latestDao.latestFrom1m(instanceId,SQLSERVER_METRICS_1M);
+        Map<String,Double> h=latestDao.latestFrom1h(instanceId,SQLSERVER_METRICS_1H);
+        List<HealthScoreVo.Deduction> out=new ArrayList<>();
+        if(m.isEmpty()&&h.isEmpty()) return assemble(instanceId,-1,-1,-1,-1,-1,out);
+        int availability=100,performance=100,stability=100,capacity=100;
+        Double available=m.get("sqlserver.availability");
+        if(available!=null&&available<1){availability-=80;out.add(deduct("availability","SQL Server 实例当前无法连接",80,"0"));}
+        Double disconnected=m.get("sqlserver.ag.disconnected_replicas");
+        if(disconnected!=null&&disconnected>0){availability-=30;out.add(deduct("availability","Always On 存在断连副本，请检查端点、网络和集群状态",30,fmt0(disconnected)));}
+        Double runnable=m.get("sqlserver.scheduler.runnable_tasks");
+        if(runnable!=null&&runnable>=4){performance-=25;out.add(deduct("performance","CPU 调度持续排队，请关联主机 CPU、Top SQL 和等待",25,fmt0(runnable)));}
+        Double grants=m.get("sqlserver.memory.grants_pending");
+        if(grants!=null&&grants>0){performance-=20;out.add(deduct("performance","查询正在等待内存授权",20,fmt0(grants)));}
+        Double writeLatency=m.get("sqlserver.io.write_latency_ms");
+        if(writeLatency!=null&&writeLatency>=20){performance-=15;out.add(deduct("performance","数据库文件写入延迟偏高",15,fmt1(writeLatency)+"ms"));}
+        Double blocked=m.get("sqlserver.blocked_sessions");
+        if(blocked!=null&&blocked>0){stability-=20;out.add(deduct("stability","存在被阻塞会话，可下钻查看阻塞链",20,fmt0(blocked)));}
+        Double deadlocks=m.get("sqlserver.deadlocks_per_sec");
+        if(deadlocks!=null&&deadlocks>0){stability-=25;out.add(deduct("stability","检测到死锁，需复盘脱敏死锁图和加锁顺序",25,fmt1(deadlocks)));}
+        Double unhealthy=m.get("sqlserver.ag.unhealthy_databases");
+        if(unhealthy!=null&&unhealthy>0){stability-=25;out.add(deduct("stability","Always On 数据库同步不健康",25,fmt0(unhealthy)));}
+        Double logUsage=m.get("sqlserver.storage.log_used_percent");
+        if(logUsage!=null&&logUsage>=85){capacity-=30;out.add(deduct("capacity","事务日志使用率偏高，需结合复用等待、日志备份和长事务判断",30,fmt1(logUsage)+"%"));}
+        Double uncovered=h.get("sqlserver.backup.uncovered_database_count");
+        if(uncovered!=null&&uncovered>0){stability-=35;out.add(deduct("stability","存在未纳入完整备份的用户数据库；备份记录也不等于可恢复",35,fmt0(uncovered)));}
+        Double fullAge=h.get("sqlserver.backup.max_full_age_hours");
+        if(fullAge!=null&&fullAge>24){stability-=20;out.add(deduct("stability","用户数据库完整备份已超过 24 小时",20,fmt0(fullAge)+"h"));}
+        return assemble(instanceId,Math.max(0,availability),Math.max(0,performance),
+                Math.max(0,stability),Math.max(0,capacity),-1,out);
     }
 
     private HealthScoreVo assemble(Long instanceId, int scoreAvail, int scorePerf, int scoreStability,

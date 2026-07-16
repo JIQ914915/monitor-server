@@ -65,6 +65,7 @@ public class SqlServerCollector extends AbstractDatabaseCollector {
 
         CollectResult result = CollectResult.ok(instanceId, sink.numeric());
         result.setTextPoints(sink.text());
+        result.setObjectPoints(sink.objects());
         result.setTopSqlPoints(sink.topSql());
         result.setSqlServerDiagnosticEventPoints(sink.diagnosticEvents());
         sink.errors().forEach(error -> result.addItemError(error.code(), error.message()));

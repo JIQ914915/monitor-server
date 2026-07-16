@@ -192,4 +192,46 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                  ORDER BY wait_age_secs DESC
                 """;
     }
+
+
+    @Override
+    public String backupCoverageSql() {
+        return """
+                SELECT d.database_id,d.name AS database_name,d.recovery_model_desc,
+                       DATEDIFF(hour,MAX(CASE WHEN b.type='D' THEN b.backup_finish_date END),GETDATE()) AS full_age_hours,
+                       DATEDIFF(hour,MAX(CASE WHEN b.type='I' THEN b.backup_finish_date END),GETDATE()) AS diff_age_hours,
+                       DATEDIFF(minute,MAX(CASE WHEN b.type='L' THEN b.backup_finish_date END),GETDATE()) AS log_age_minutes,
+                       MAX(CASE WHEN b.rn=1 THEN DATEDIFF(second,b.backup_start_date,b.backup_finish_date) END) latest_duration_seconds,
+                       MAX(CASE WHEN b.rn=1 THEN b.backup_size END) latest_size_bytes,
+                       MAX(CASE WHEN b.rn=1 THEN b.compressed_backup_size END) latest_compressed_bytes,
+                       MAX(CASE WHEN b.rn=1 AND b.has_backup_checksums=1 THEN 1 ELSE 0 END) latest_has_checksum
+                  FROM sys.databases d
+                  LEFT JOIN (
+                    SELECT *,ROW_NUMBER() OVER(PARTITION BY database_name ORDER BY backup_finish_date DESC) rn
+                      FROM msdb.dbo.backupset WHERE is_copy_only IN (0,1)
+                  ) b ON b.database_name=d.name
+                 WHERE d.state_desc='ONLINE' AND d.source_database_id IS NULL
+                 GROUP BY d.database_id,d.name,d.recovery_model_desc
+                 ORDER BY d.name
+                """;
+    }
+
+    @Override
+    public String alwaysOnHealthSql() {
+        return """
+                SELECT ag.name AS group_name,ar.replica_server_name,DB_NAME(drs.database_id) AS database_name,
+                       ars.role_desc,ars.connected_state_desc,ars.operational_state_desc,
+                       drs.synchronization_state_desc,drs.synchronization_health_desc,
+                       drs.is_suspended,drs.suspend_reason_desc,drs.log_send_queue_size,
+                       drs.log_send_rate,drs.redo_queue_size,drs.redo_rate,
+                       CASE WHEN drs.log_send_rate>0 THEN drs.log_send_queue_size*1.0/drs.log_send_rate END AS send_seconds,
+                       CASE WHEN drs.redo_rate>0 THEN drs.redo_queue_size*1.0/drs.redo_rate END AS redo_seconds
+                  FROM sys.dm_hadr_database_replica_states drs
+                  JOIN sys.availability_replicas ar ON ar.replica_id=drs.replica_id
+                  JOIN sys.availability_groups ag ON ag.group_id=ar.group_id
+                  LEFT JOIN sys.dm_hadr_availability_replica_states ars ON ars.replica_id=ar.replica_id
+                         AND ars.group_id=ag.group_id
+                 WHERE drs.is_local=1
+                """;
+    }
 }

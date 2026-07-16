@@ -98,6 +98,18 @@ public class ReportServiceImpl implements ReportService {
     }
 
     /** PostgreSQL 核心指标（一期指标集内的对应口径，语句延迟/慢SQL 待二期 pg_stat_statements 接入）。 */
+    private static final LinkedHashMap<String, String[]> SQLSERVER_CORE_METRICS = new LinkedHashMap<>();
+    static {
+        SQLSERVER_CORE_METRICS.put("sqlserver.batch_requests_per_sec", new String[]{"批处理请求/秒", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.session.user", new String[]{"用户会话", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.scheduler.runnable_tasks", new String[]{"CPU 排队任务", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.memory.grants_pending", new String[]{"内存授权等待", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.io.write_latency_ms", new String[]{"写入延迟", "ms"});
+        SQLSERVER_CORE_METRICS.put("sqlserver.blocked_sessions", new String[]{"阻塞会话", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.storage.log_used_percent", new String[]{"日志使用率", "%"});
+        SQLSERVER_CORE_METRICS.put("sqlserver.deadlocks_per_sec", new String[]{"死锁/秒", ""});
+    }
+
     private static final LinkedHashMap<String, String[]> PG_CORE_METRICS = new LinkedHashMap<>();
     static {
         PG_CORE_METRICS.put("pg.tps", new String[]{"TPS", ""});
@@ -162,7 +174,7 @@ public class ReportServiceImpl implements ReportService {
         }
         String code = runtimeMetadataService.getRequired(ins.getId()).dbTypeCode();
         DbType type = DbType.of(code);
-        if (type != DbType.MYSQL && type != DbType.POSTGRESQL) {
+        if (type != DbType.MYSQL && type != DbType.POSTGRESQL && type != DbType.SQLSERVER) {
             throw new BusinessException("报告暂不支持数据库类型: " + code);
         }
         return type;
@@ -170,6 +182,10 @@ public class ReportServiceImpl implements ReportService {
 
     private boolean isPostgres(DbInstance ins) {
         return resolveDbType(ins) == DbType.POSTGRESQL;
+    }
+
+    private boolean isSqlServer(DbInstance ins) {
+        return resolveDbType(ins) == DbType.SQLSERVER;
     }
 
     // ── 归档查询 ─────────────────────────────────────────────────────────────
@@ -406,12 +422,21 @@ public class ReportServiceImpl implements ReportService {
         List<Map<String, Object>> healthRows = new ArrayList<>();
         for (DbInstance ins : instances) {
             boolean pg = isPostgres(ins);
+            boolean sqlServer = isSqlServer(ins);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("name", ins.getName());
             row.put("status", statusLabel(ins.getStatus()));
             row.put("health", ins.getHealth() == null || ins.getHealth() < 0 ? "-" : String.valueOf(ins.getHealth()));
             row.put("activeAlerts", activeAlerts.getOrDefault(ins.getId(), 0));
-            if (pg) {
+            if (sqlServer) {
+                Map<String, Double> latest = metricLatestDao.latestFrom1m(ins.getId(),
+                        List.of("sqlserver.session.user", "sqlserver.batch_requests_per_sec",
+                                "sqlserver.blocked_sessions", "sqlserver.io.write_latency_ms"));
+                row.put("connUsage", fmtVal(latest.get("sqlserver.session.user"), ""));
+                row.put("qps", fmtVal(latest.get("sqlserver.batch_requests_per_sec"), ""));
+                row.put("slowPerMin", fmtVal(latest.get("sqlserver.blocked_sessions"), ""));
+                row.put("latency", fmtVal(latest.get("sqlserver.io.write_latency_ms"), "ms"));
+            } else if (pg) {
                 Map<String, Double> latest = metricLatestDao.latestFrom1m(ins.getId(),
                         List.of("pg.conn.usage", "pg.tps", "pg.cache.hit_rate"));
                 row.put("connUsage", fmtVal(latest.get("pg.conn.usage"), "%"));
@@ -493,7 +518,21 @@ public class ReportServiceImpl implements ReportService {
         for (DbInstance ins : instances) {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("instance", ins.getName());
-            if (isPostgres(ins)) {
+            if (isSqlServer(ins)) {
+                Map<String,Double> ha=metricLatestDao.latestFrom1m(ins.getId(),List.of(
+                        "sqlserver.ag.disconnected_replicas","sqlserver.ag.unhealthy_databases",
+                        "sqlserver.ag.max_send_seconds"));
+                double disconnected=num(ha.get("sqlserver.ag.disconnected_replicas"));
+                double unhealthy=num(ha.get("sqlserver.ag.unhealthy_databases"));
+                double lag=num(ha.get("sqlserver.ag.max_send_seconds"));
+                row.put("role","Always On");
+                row.put("io",disconnected>0?"副本断连":"已连接");
+                row.put("sql",unhealthy>0?"同步不健康":"同步健康");
+                row.put("lag",pct(lag)+"s");
+                boolean risk=disconnected>0||unhealthy>0||lag>300;
+                if(risk) replRisk++;
+                row.put("conclusion",risk?"HA 存在风险，请人工排查；平台不会自动故障转移":"HA 当前正常或未启用");
+            } else if (isPostgres(ins)) {
                 Map<String, Double> repl = metricLatestDao.latestFrom1m(ins.getId(), List.of(
                         "pg.repl.is_replica", "pg.repl.lag_seconds", "pg.repl.replica_count"));
                 Double isReplica = repl.get("pg.repl.is_replica");
@@ -649,6 +688,33 @@ public class ReportServiceImpl implements ReportService {
             ), pgDrillRows, "尚未登记恢复演练；WAL 归档正常不等于可恢复"));
         }
 
+        List<Map<String,Object>> sqlServerOpsRows=new ArrayList<>();
+        for(DbInstance ins:instances){
+            if(!isSqlServer(ins)) continue;
+            Map<String,Double> backup=metricLatestDao.latestFrom1h(ins.getId(),List.of(
+                    "sqlserver.backup.max_full_age_hours","sqlserver.backup.uncovered_database_count",
+                    "sqlserver.backup.log_missing_database_count"));
+            Map<String,Double> ha=metricLatestDao.latestFrom1m(ins.getId(),List.of(
+                    "sqlserver.ag.disconnected_replicas","sqlserver.ag.unhealthy_databases",
+                    "sqlserver.ag.max_send_seconds","sqlserver.ag.max_redo_seconds"));
+            Map<String,Object> row=new LinkedHashMap<>();row.put("instance",ins.getName());
+            double uncovered=num(backup.get("sqlserver.backup.uncovered_database_count"));
+            double fullAge=num(backup.get("sqlserver.backup.max_full_age_hours"));
+            double disconnected=num(ha.get("sqlserver.ag.disconnected_replicas"));
+            double unhealthy=num(ha.get("sqlserver.ag.unhealthy_databases"));
+            row.put("backup",backup.isEmpty()?"数据不足":uncovered>0?"存在未覆盖数据库":fullAge>24?"完整备份逾期":"备份覆盖正常");
+            row.put("fullAge",backup.isEmpty()?"-":pct(fullAge)+"h");
+            row.put("ha",ha.isEmpty()?"未启用或数据不足":disconnected>0?"副本断连":unhealthy>0?"同步不健康":"同步健康");
+            row.put("rpo",ha.isEmpty()?"-":pct(num(ha.get("sqlserver.ag.max_send_seconds")))+"s");
+            row.put("rto",ha.isEmpty()?"-":pct(num(ha.get("sqlserver.ag.max_redo_seconds")))+"s");
+            row.put("notice","备份记录不等于可恢复；HA 切换须人工确认");
+            sqlServerOpsRows.add(row);
+        }
+        if(!sqlServerOpsRows.isEmpty()) sections.add(tableSection("SQL Server 备份与 Always On",List.of(
+                col("instance","实例"),col("backup","备份结论"),col("fullAge","最久完整备份"),
+                col("ha","HA 结论"),col("rpo","估算 RPO 风险"),col("rto","估算 RTO 风险"),col("notice","说明")),
+                sqlServerOpsRows,"暂无 SQL Server 运维保障数据"));
+
         // 11. 优化建议（按巡检发现推导）
         List<String> tips = new ArrayList<>();
         if (critical > 0) tips.add("存在 " + critical + " 个严重状态实例，请优先进入告警事件中心处理未恢复事件。");
@@ -749,10 +815,11 @@ public class ReportServiceImpl implements ReportService {
 
         // 指标口径按库类型分派（PG 一期无语句延迟/慢SQL，对应段落自动降级）
         boolean pg = isPostgres(ins);
-        LinkedHashMap<String, String[]> coreMetrics = pg ? PG_CORE_METRICS : CORE_METRICS;
-        String throughputCode = pg ? "pg.tps" : "mysql.qps";
-        String connUsageCode = pg ? "pg.conn.usage" : "mysql.conn.usage";
-        String hitRateCode = pg ? "pg.cache.hit_rate" : "mysql.innodb.buffer_pool_hit_rate";
+        boolean sqlServer = isSqlServer(ins);
+        LinkedHashMap<String, String[]> coreMetrics = sqlServer ? SQLSERVER_CORE_METRICS : pg ? PG_CORE_METRICS : CORE_METRICS;
+        String throughputCode = sqlServer ? "sqlserver.batch_requests_per_sec" : pg ? "pg.tps" : "mysql.qps";
+        String connUsageCode = sqlServer ? "sqlserver.session.user" : pg ? "pg.conn.usage" : "mysql.conn.usage";
+        String hitRateCode = sqlServer ? "sqlserver.memory.grants_pending" : pg ? "pg.cache.hit_rate" : "mysql.innodb.buffer_pool_hit_rate";
         String hitRateLabel = pg ? "缓存" : "Buffer Pool";
 
         List<String> codes = List.copyOf(coreMetrics.keySet());
@@ -762,11 +829,16 @@ public class ReportServiceImpl implements ReportService {
         // 1. 分析概述
         double avgQps = statVal(stats, throughputCode, "avg_value");
         double maxConnUsage = statVal(stats, connUsageCode, "max_value");
-        double avgLatency = pg ? 0 : statVal(stats, "mysql.perf.avg_stmt_latency_ms", "avg_value");
+        double avgLatency = sqlServer ? statVal(stats, "sqlserver.io.write_latency_ms", "avg_value")
+                : pg ? 0 : statVal(stats, "mysql.perf.avg_stmt_latency_ms", "avg_value");
         double avgHit = statVal(stats, hitRateCode, "avg_value");
         boolean hasData = !stats.isEmpty();
         String summary = !hasData
                 ? "统计时段内无采集数据，无法进行性能分析。请检查实例采集状态。"
+                : sqlServer
+                ? String.format("实例「%s」平均批处理请求 %s/秒，用户会话峰值 %s，写入延迟均值 %s ms。%s",
+                        ins.getName(),pct(avgQps),pct(maxConnUsage),pct(avgLatency),
+                        avgLatency>=20?"I/O 写入延迟偏高，请关联等待、Top SQL 和主机磁盘。":"整体运行平稳。")
                 : pg
                 ? String.format("实例「%s」统计时段内平均 TPS %s，连接使用率峰值 %s%%，缓存命中率 %s%%。%s",
                         ins.getName(), pct(avgQps), pct(maxConnUsage), pct(avgHit),
@@ -810,8 +882,9 @@ public class ReportServiceImpl implements ReportService {
         long toMs = to.toInstant().toEpochMilli();
         String freq = (toMs - fromMs) > 26L * 3600 * 1000 ? "1h" : "1m";
         int chartIdx = 0;
-        List<String> chartCodes = pg
-                ? List.of("pg.tps", "pg.cache.hit_rate", "pg.conn.usage")
+        List<String> chartCodes = sqlServer
+                ? List.of("sqlserver.batch_requests_per_sec","sqlserver.io.write_latency_ms","sqlserver.scheduler.runnable_tasks")
+                : pg ? List.of("pg.tps", "pg.cache.hit_rate", "pg.conn.usage")
                 : List.of("mysql.qps", "mysql.perf.avg_stmt_latency_ms", "mysql.conn.usage");
         for (String code : chartCodes) {
             String[] meta = coreMetrics.get(code);
@@ -825,8 +898,10 @@ public class ReportServiceImpl implements ReportService {
 
         // 4. 异常时段识别（小时均值超过全期均值 1.5 倍视为异常）
         List<Map<String, Object>> anomalyRows = new ArrayList<>();
-        List<String> anomalyCodes = pg
-                ? List.of("pg.tps", "pg.conn.usage", "pg.delta.temp_files", "pg.locks.waiting")
+        List<String> anomalyCodes = sqlServer
+                ? List.of("sqlserver.batch_requests_per_sec","sqlserver.io.write_latency_ms",
+                        "sqlserver.blocked_sessions","sqlserver.scheduler.runnable_tasks")
+                : pg ? List.of("pg.tps", "pg.conn.usage", "pg.delta.temp_files", "pg.locks.waiting")
                 : List.of("mysql.qps", "mysql.perf.avg_stmt_latency_ms", "mysql.delta.slow_queries", "mysql.conn.usage");
         for (String code : anomalyCodes) {
             double overall = statVal(stats, code, "avg_value");
@@ -855,10 +930,16 @@ public class ReportServiceImpl implements ReportService {
 
         // 4. 性能瓶颈分析（按库类型输出对应结论）
         List<String> bottlenecks = new ArrayList<>();
-        if (maxConnUsage > 80) bottlenecks.add("连接使用率峰值 " + pct(maxConnUsage) + "%，接近连接上限，存在连接池耗尽风险。");
-        if (avgHit > 0 && avgHit < 95) bottlenecks.add(hitRateLabel + " 命中率均值 " + pct(avgHit) + "%，低于 95% 参考线，可能存在内存不足或全表扫描。");
+        if (!sqlServer && maxConnUsage > 80) bottlenecks.add("连接使用率峰值 " + pct(maxConnUsage) + "%，接近连接上限，存在连接池耗尽风险。");
+        if (!sqlServer && avgHit > 0 && avgHit < 95) bottlenecks.add(hitRateLabel + " 命中率均值 " + pct(avgHit) + "%，低于 95% 参考线，可能存在内存不足或全表扫描。");
         double slowSum = 0;
-        if (pg) {
+        if (sqlServer) {
+            double blocked=statVal(stats,"sqlserver.blocked_sessions","max_value");
+            double runnable=statVal(stats,"sqlserver.scheduler.runnable_tasks","max_value");
+            if(avgLatency>=20)bottlenecks.add("写入延迟均值 "+pct(avgLatency)+" ms 偏高，请关联 PAGEIOLATCH/WRITELOG 等待和主机磁盘。");
+            if(blocked>0)bottlenecks.add("统计时段内存在阻塞会话，建议从告警下钻阻塞链。");
+            if(runnable>=4)bottlenecks.add("CPU 调度排队明显，建议关联 Top SQL 和主机 CPU。");
+        } else if (pg) {
             double tempFiles = statVal(stats, "pg.delta.temp_files", "avg_value");
             double deadlocks = statVal(stats, "pg.delta.deadlocks", "avg_value");
             if (tempFiles > 0.5) bottlenecks.add("平均每分钟产生临时文件 " + pct(tempFiles) + " 个，存在超出 work_mem 的大排序/哈希，建议定位相关语句。");
@@ -873,8 +954,10 @@ public class ReportServiceImpl implements ReportService {
 
         // 5. 优化建议
         List<String> tips = new ArrayList<>();
-        if (maxConnUsage > 80) tips.add("核对应用连接池上限与数据库 max_connections 配置，清理长时间空闲连接。");
-        if (pg) {
+        if (!sqlServer && maxConnUsage > 80) tips.add("核对应用连接池上限与数据库连接配置，清理长时间空闲连接。");
+        if (sqlServer) {
+            tips.add("优先结合 Top 等待、Top SQL、阻塞链和 Query Store 状态定位根因；所有切换和参数调整均须人工确认。");
+        } else if (pg) {
             if (avgHit > 0 && avgHit < 95) tips.add("评估 shared_buffers / effective_cache_size 是否与数据热集匹配，排查高频全表扫描 SQL。");
             double tempFiles = statVal(stats, "pg.delta.temp_files", "avg_value");
             if (tempFiles > 0.5) tips.add("开启 log_temp_files 定位产生临时文件的语句，优先优化 SQL，再评估 work_mem。");
@@ -884,7 +967,7 @@ public class ReportServiceImpl implements ReportService {
         }
         tips.add("建议保持定期巡检报告，跟踪指标趋势变化。");
         sections.add(listSection("六、优化建议", tips));
-        if (!pg) {
+        if (!pg && !sqlServer) {
             List<Map<String,Object>> planRows = mySqlDiagnosticMapper.selectRecentPlans(ins.getId(), tFrom, tTo, 20).stream().map(plan -> {
                 Map<String,Object> row = new LinkedHashMap<>(); row.put("capturedAt", plan.get("captured_at"));
                 row.put("schema", plan.get("schema_name")); row.put("sqlHash", plan.get("sql_hash"));

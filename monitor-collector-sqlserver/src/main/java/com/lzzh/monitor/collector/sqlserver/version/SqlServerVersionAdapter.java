@@ -14,4 +14,6 @@ public interface SqlServerVersionAdapter extends VersionAdapter {
     String dmvTopSql();
     String deadlockEventsSql();
     String blockingChainSql();
+    String backupCoverageSql();
+    String alwaysOnHealthSql();
 }
