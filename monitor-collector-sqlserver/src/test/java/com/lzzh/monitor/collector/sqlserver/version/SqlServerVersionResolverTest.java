@@ -42,11 +42,18 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.blockingChainSql()).contains("blocking_session_id");
             assertThat(adapter.backupCoverageSql()).contains("msdb.dbo.backupset", "recovery_model_desc");
             assertThat(adapter.alwaysOnHealthSql()).contains("sys.dm_hadr_database_replica_states", "log_send_queue_size");
+            assertThat(adapter.agentHealthSql()).contains("msdb.dbo.sysjobs").doesNotContain("command");
+            assertThat(adapter.logShippingSql()).contains("log_shipping_monitor_primary");
+            assertThat(adapter.replicationCdcSql()).contains("is_cdc_enabled");
+            assertThat(adapter.configurationSnapshotSql()).contains("sys.configurations");
+            assertThat(adapter.indexCandidatesSql()).contains("sys.dm_db_missing_index_group_stats");
             assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
                             adapter.performanceCountersSql(), adapter.runtimeSql(),
                             adapter.waitStatsSql(), adapter.storageSql(), adapter.queryStoreTopSql(),
                             adapter.dmvTopSql(), adapter.deadlockEventsSql(), adapter.blockingChainSql(),
-                            adapter.backupCoverageSql(), adapter.alwaysOnHealthSql()))
+                            adapter.backupCoverageSql(), adapter.alwaysOnHealthSql(), adapter.agentHealthSql(),
+                            adapter.logShippingSql(), adapter.replicationCdcSql(), adapter.configurationSnapshotSql(),
+                            adapter.indexCandidatesSql()))
                     .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ", "INSERT ");
         }
     }

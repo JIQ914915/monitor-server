@@ -519,7 +519,10 @@ public class ReportServiceImpl implements ReportService {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("instance", ins.getName());
             if (isSqlServer(ins)) {
-                Map<String,Double> ha=metricLatestDao.latestFrom1m(ins.getId(),List.of(
+                Map<String,Double> operations=metricLatestDao.latestFrom1h(ins.getId(),List.of(
+                    "sqlserver.agent.failed_jobs","sqlserver.log_shipping.restore_delay_minutes",
+                    "sqlserver.configuration.auto_shrink_databases","sqlserver.index.missing_candidate_count"));
+            Map<String,Double> ha=metricLatestDao.latestFrom1m(ins.getId(),List.of(
                         "sqlserver.ag.disconnected_replicas","sqlserver.ag.unhealthy_databases",
                         "sqlserver.ag.max_send_seconds"));
                 double disconnected=num(ha.get("sqlserver.ag.disconnected_replicas"));
@@ -694,6 +697,9 @@ public class ReportServiceImpl implements ReportService {
             Map<String,Double> backup=metricLatestDao.latestFrom1h(ins.getId(),List.of(
                     "sqlserver.backup.max_full_age_hours","sqlserver.backup.uncovered_database_count",
                     "sqlserver.backup.log_missing_database_count"));
+            Map<String,Double> operations=metricLatestDao.latestFrom1h(ins.getId(),List.of(
+                    "sqlserver.agent.failed_jobs","sqlserver.log_shipping.restore_delay_minutes",
+                    "sqlserver.configuration.auto_shrink_databases","sqlserver.index.missing_candidate_count"));
             Map<String,Double> ha=metricLatestDao.latestFrom1m(ins.getId(),List.of(
                     "sqlserver.ag.disconnected_replicas","sqlserver.ag.unhealthy_databases",
                     "sqlserver.ag.max_send_seconds","sqlserver.ag.max_redo_seconds"));
@@ -707,12 +713,17 @@ public class ReportServiceImpl implements ReportService {
             row.put("ha",ha.isEmpty()?"未启用或数据不足":disconnected>0?"副本断连":unhealthy>0?"同步不健康":"同步健康");
             row.put("rpo",ha.isEmpty()?"-":pct(num(ha.get("sqlserver.ag.max_send_seconds")))+"s");
             row.put("rto",ha.isEmpty()?"-":pct(num(ha.get("sqlserver.ag.max_redo_seconds")))+"s");
-            row.put("notice","备份记录不等于可恢复；HA 切换须人工确认");
+            row.put("agent",operations.isEmpty()?"数据不足":num(operations.get("sqlserver.agent.failed_jobs"))>0?"存在失败作业":"最近作业正常或未安装");
+            row.put("logShipping",operations.get("sqlserver.log_shipping.restore_delay_minutes")==null?"未配置":pct(num(operations.get("sqlserver.log_shipping.restore_delay_minutes")))+"min");
+            row.put("advice",num(operations.get("sqlserver.configuration.auto_shrink_databases"))>0?"存在自动收缩风险":
+                    num(operations.get("sqlserver.index.missing_candidate_count"))>0?"存在索引候选，须人工验证":"暂无高级风险");
+            row.put("notice","备份记录不等于可恢复；HA、作业、配置和索引处置须人工确认；缺少主机数据时不能确认宿主资源压力");
             sqlServerOpsRows.add(row);
         }
         if(!sqlServerOpsRows.isEmpty()) sections.add(tableSection("SQL Server 备份与 Always On",List.of(
                 col("instance","实例"),col("backup","备份结论"),col("fullAge","最久完整备份"),
-                col("ha","HA 结论"),col("rpo","估算 RPO 风险"),col("rto","估算 RTO 风险"),col("notice","说明")),
+                col("ha","HA 结论"),col("rpo","估算 RPO 风险"),col("rto","估算 RTO 风险"),
+                col("agent","Agent"),col("logShipping","日志传送"),col("advice","配置/索引建议"),col("notice","说明")),
                 sqlServerOpsRows,"暂无 SQL Server 运维保障数据"));
 
         // 11. 优化建议（按巡检发现推导）

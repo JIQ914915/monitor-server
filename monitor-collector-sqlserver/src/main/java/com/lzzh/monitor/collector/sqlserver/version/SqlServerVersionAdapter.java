@@ -16,4 +16,9 @@ public interface SqlServerVersionAdapter extends VersionAdapter {
     String blockingChainSql();
     String backupCoverageSql();
     String alwaysOnHealthSql();
+    String agentHealthSql();
+    String logShippingSql();
+    String replicationCdcSql();
+    String configurationSnapshotSql();
+    String indexCandidatesSql();
 }

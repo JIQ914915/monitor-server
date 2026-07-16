@@ -234,4 +234,94 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                  WHERE drs.is_local=1
                 """;
     }
+
+
+    @Override
+    public String agentHealthSql() {
+        return """
+                WITH last_run AS (
+                  SELECT job_id,run_status,run_duration,message,
+                         ROW_NUMBER() OVER(PARTITION BY job_id ORDER BY instance_id DESC) rn
+                    FROM msdb.dbo.sysjobhistory WHERE step_id=0
+                )
+                SELECT (SELECT COUNT(*) FROM msdb.dbo.sysjobs) AS job_count,
+                       SUM(CASE WHEN j.enabled=0 THEN 1 ELSE 0 END) AS disabled_jobs,
+                       SUM(CASE WHEN l.run_status=0 THEN 1 ELSE 0 END) AS failed_jobs,
+                       SUM(CASE WHEN a.start_execution_date IS NOT NULL AND a.stop_execution_date IS NULL THEN 1 ELSE 0 END) AS running_jobs,
+                       MAX(CASE WHEN l.run_status=0 THEN l.run_duration ELSE 0 END) AS max_failed_duration,
+                       MAX(CASE WHEN l.run_status=0 THEN 1 ELSE 0 END) AS has_failure
+                  FROM msdb.dbo.sysjobs j
+                  LEFT JOIN last_run l ON l.job_id=j.job_id AND l.rn=1
+                  LEFT JOIN msdb.dbo.sysjobactivity a ON a.job_id=j.job_id
+                    AND a.session_id=(SELECT MAX(session_id) FROM msdb.dbo.syssessions)
+                """;
+    }
+
+    @Override
+    public String logShippingSql() {
+        return """
+                SELECT
+                  (SELECT COUNT(*) FROM msdb.dbo.log_shipping_monitor_primary) AS primary_count,
+                  (SELECT COUNT(*) FROM msdb.dbo.log_shipping_monitor_secondary) AS secondary_count,
+                  (SELECT COALESCE(MAX(DATEDIFF(minute,last_backup_date,GETDATE())),0)
+                     FROM msdb.dbo.log_shipping_monitor_primary) AS max_backup_delay_minutes,
+                  (SELECT COALESCE(MAX(DATEDIFF(minute,last_copied_date,GETDATE())),0)
+                     FROM msdb.dbo.log_shipping_monitor_secondary) AS max_copy_delay_minutes,
+                  (SELECT COALESCE(MAX(DATEDIFF(minute,last_restored_date,GETDATE())),0)
+                     FROM msdb.dbo.log_shipping_monitor_secondary) AS max_restore_delay_minutes
+                """;
+    }
+
+    @Override
+    public String replicationCdcSql() {
+        return """
+                SELECT SUM(CASE WHEN is_published=1 OR is_merge_published=1 THEN 1 ELSE 0 END) published_databases,
+                       SUM(CASE WHEN is_subscribed=1 THEN 1 ELSE 0 END) subscribed_databases,
+                       SUM(CASE WHEN is_cdc_enabled=1 THEN 1 ELSE 0 END) cdc_databases
+                  FROM sys.databases
+                """;
+    }
+
+    @Override
+    public String configurationSnapshotSql() {
+        return """
+                SELECT name,CAST(value_in_use AS nvarchar(256)) value_text,'instance' scope_name
+                  FROM sys.configurations
+                 WHERE name IN ('max server memory (MB)','max degree of parallelism',
+                    'cost threshold for parallelism','backup compression default','optimize for ad hoc workloads')
+                UNION ALL
+                SELECT 'database.compatibility_level',CAST(compatibility_level AS nvarchar(256)),name
+                  FROM sys.databases WHERE database_id>4
+                UNION ALL
+                SELECT 'database.auto_shrink',CAST(is_auto_shrink_on AS nvarchar(256)),name
+                  FROM sys.databases WHERE database_id>4
+                UNION ALL
+                SELECT 'database.recovery_model',recovery_model_desc,name
+                  FROM sys.databases WHERE database_id>4
+                ORDER BY scope_name,name
+                """;
+    }
+
+    @Override
+    public String indexCandidatesSql() {
+        return """
+                SELECT TOP (50) 'missing' candidate_type,
+                       COALESCE(OBJECT_SCHEMA_NAME(mid.object_id,mid.database_id),'')+'.'+
+                       COALESCE(OBJECT_NAME(mid.object_id,mid.database_id),'') object_name,
+                       CAST(migs.avg_total_user_cost*migs.avg_user_impact*(migs.user_seeks+migs.user_scans) AS float) score
+                  FROM sys.dm_db_missing_index_group_stats migs
+                  JOIN sys.dm_db_missing_index_groups mig ON mig.index_group_handle=migs.group_handle
+                  JOIN sys.dm_db_missing_index_details mid ON mid.index_handle=mig.index_handle
+                 WHERE mid.database_id=DB_ID()
+                UNION ALL
+                SELECT TOP (50) 'unused',OBJECT_SCHEMA_NAME(i.object_id)+'.'+OBJECT_NAME(i.object_id)+'.'+i.name,
+                       CAST(SUM(ps.used_page_count)*8.0 AS float)
+                  FROM sys.indexes i JOIN sys.dm_db_partition_stats ps ON ps.object_id=i.object_id AND ps.index_id=i.index_id
+                  LEFT JOIN sys.dm_db_index_usage_stats u ON u.database_id=DB_ID() AND u.object_id=i.object_id AND u.index_id=i.index_id
+                 WHERE i.index_id>1 AND i.is_primary_key=0 AND i.is_unique_constraint=0
+                   AND COALESCE(u.user_seeks,0)+COALESCE(u.user_scans,0)+COALESCE(u.user_lookups,0)=0
+                 GROUP BY i.object_id,i.name
+                 ORDER BY score DESC
+                """;
+    }
 }
