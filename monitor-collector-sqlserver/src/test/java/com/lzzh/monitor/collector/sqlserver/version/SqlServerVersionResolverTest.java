@@ -36,9 +36,14 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.waitStatsSql()).contains("sys.dm_os_wait_stats", "wait_category");
             assertThat(adapter.storageSql())
                     .contains("sys.dm_io_virtual_file_stats", "sys.dm_db_log_space_usage");
+            assertThat(adapter.queryStoreTopSql()).contains("sys.query_store_runtime_stats");
+            assertThat(adapter.dmvTopSql()).contains("sys.dm_exec_query_stats");
+            assertThat(adapter.deadlockEventsSql()).contains("system_health", "xml_deadlock_report");
+            assertThat(adapter.blockingChainSql()).contains("blocking_session_id");
             assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
                             adapter.performanceCountersSql(), adapter.runtimeSql(),
-                            adapter.waitStatsSql(), adapter.storageSql()))
+                            adapter.waitStatsSql(), adapter.storageSql(), adapter.queryStoreTopSql(),
+                            adapter.dmvTopSql(), adapter.deadlockEventsSql(), adapter.blockingChainSql()))
                     .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ", "INSERT ");
         }
     }

@@ -29,4 +29,12 @@ class BlockingChainSnapshotServiceTest {
         assertThat(BlockingChainSnapshotService.blockingChainSql("8.4"))
                 .contains("sys.innodb_lock_waits");
     }
+
+
+    @Test
+    void buildsSqlServerReadOnlyBlockingSnapshotQuery() {
+        String sql = BlockingChainSnapshotService.blockingChainSql("SQLSERVER", "2022");
+        assertThat(sql).contains("sys.dm_exec_requests", "blocking_session_id")
+                .doesNotContain("KILL ", "ALTER ", "UPDATE ", "DELETE ");
+    }
 }

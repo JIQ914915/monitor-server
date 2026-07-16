@@ -21,6 +21,7 @@ public interface TsTopSqlWriter {
                          // 诊断维度差值（锁等待/排序行/无索引/临时表，V99）
                          Long deltaLockTime, Long deltaSortRows, Long deltaNoIndexUsed,
                          Long deltaTmpTables, Long deltaTmpDiskTables,
+                         Long deltaPhysicalReads, Long deltaWrites,
                          long timestampMillis) {
 
         /** 是否携带有效差值（false 则不应落库）。 */

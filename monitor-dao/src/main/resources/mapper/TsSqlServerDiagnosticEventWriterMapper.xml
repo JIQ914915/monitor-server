@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsSqlServerDiagnosticEventWriterMapper">
+  <insert id="insertBatch">
+    INSERT INTO sqlserver_diagnostic_event
+      (instance_id,event_type,database_name,severity,fingerprint,payload,sensitive_redacted,event_time)
+    VALUES
+    <foreach collection="items" item="it" separator=",">
+      (#{instanceId},#{it.eventType},#{it.databaseName,jdbcType=VARCHAR},#{it.severity},
+       #{it.fingerprint},#{it.payload},#{it.sensitiveRedacted},to_timestamp(#{it.eventTimeMillis}/1000.0))
+    </foreach>
+    ON CONFLICT (instance_id,event_type,fingerprint) DO NOTHING
+  </insert>
+</mapper>

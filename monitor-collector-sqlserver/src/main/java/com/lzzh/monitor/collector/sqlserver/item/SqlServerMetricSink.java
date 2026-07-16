@@ -1,7 +1,9 @@
 package com.lzzh.monitor.collector.sqlserver.item;
 
 import com.lzzh.monitor.collector.spi.model.MetricPoint;
+import com.lzzh.monitor.collector.spi.model.SqlServerDiagnosticEventPoint;
 import com.lzzh.monitor.collector.spi.model.TextMetricPoint;
+import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -14,6 +16,8 @@ public class SqlServerMetricSink {
 
     private final List<MetricPoint> numeric = new ArrayList<>();
     private final List<TextMetricPoint> text = new ArrayList<>();
+    private final List<TopSqlPoint> topSql = new ArrayList<>();
+    private final List<SqlServerDiagnosticEventPoint> diagnosticEvents = new ArrayList<>();
     private final List<ItemError> errors = new ArrayList<>();
 
     public void addNumeric(String metric, double value, long ts) {
@@ -25,12 +29,18 @@ public class SqlServerMetricSink {
         text.add(new TextMetricPoint(metric, safe, sha256(safe), ts));
     }
 
+    public void addTopSql(TopSqlPoint point) { topSql.add(point); }
+
+    public void addDiagnosticEvent(SqlServerDiagnosticEventPoint point) { diagnosticEvents.add(point); }
+
     public void addItemError(String code, String message) {
         errors.add(new ItemError(code, message));
     }
 
     public List<MetricPoint> numeric() { return numeric; }
     public List<TextMetricPoint> text() { return text; }
+    public List<TopSqlPoint> topSql() { return topSql; }
+    public List<SqlServerDiagnosticEventPoint> diagnosticEvents() { return diagnosticEvents; }
     public List<ItemError> errors() { return errors; }
 
     private static String sha256(String value) {

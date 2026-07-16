@@ -10,4 +10,8 @@ public interface SqlServerVersionAdapter extends VersionAdapter {
     String runtimeSql();
     String waitStatsSql();
     String storageSql();
+    String queryStoreTopSql();
+    String dmvTopSql();
+    String deadlockEventsSql();
+    String blockingChainSql();
 }

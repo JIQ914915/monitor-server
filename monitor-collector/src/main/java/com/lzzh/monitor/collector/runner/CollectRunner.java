@@ -37,6 +37,7 @@ import com.lzzh.monitor.collector.spi.model.ObjectMetricPoint;
 import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
 import com.lzzh.monitor.collector.spi.model.PgOperationalEventPoint;
 import com.lzzh.monitor.collector.spi.model.SlowSqlSamplePoint;
+import com.lzzh.monitor.collector.spi.model.SqlServerDiagnosticEventPoint;
 import com.lzzh.monitor.collector.spi.model.TextMetricPoint;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
 import com.lzzh.monitor.common.enums.CollectFrequency;
@@ -53,6 +54,7 @@ import com.lzzh.monitor.dao.ts.TsParamQueryDao;
 import com.lzzh.monitor.dao.ts.TsPgQueryStatWriter;
 import com.lzzh.monitor.dao.ts.TsPgOperationalEventWriter;
 import com.lzzh.monitor.dao.ts.TsSlowSqlSampleWriter;
+import com.lzzh.monitor.dao.ts.TsSqlServerDiagnosticEventWriter;
 import com.lzzh.monitor.dao.ts.TsTextWriter;
 import com.lzzh.monitor.dao.ts.TsTopSqlWriter;
 
@@ -81,6 +83,8 @@ public class CollectRunner {
     private TsPgQueryStatWriter tsPgQueryStatWriter;
     @Resource
     private TsPgOperationalEventWriter tsPgOperationalEventWriter;
+    @Resource
+    private TsSqlServerDiagnosticEventWriter tsSqlServerDiagnosticEventWriter;
     @Resource
     private TsCapacityObjectWriter tsCapacityObjectWriter;
     @Resource
@@ -480,6 +484,7 @@ public class CollectRunner {
         writeTopSql(instanceId, result.getTopSqlPoints());
         writePgQueryStats(instanceId, result.getPgQueryStatPoints());
         writePgOperationalEvents(instanceId, result.getPgOperationalEventPoints());
+        writeSqlServerDiagnosticEvents(instanceId, result.getSqlServerDiagnosticEventPoints());
         writeLongConns(instanceId, result.getLongConnPoints());
         writeSlowSqlSamples(instanceId, result.getSlowSqlSamplePoints());
     }
@@ -554,6 +559,14 @@ public class CollectRunner {
         )).toList();
         tsPgOperationalEventWriter.batchWrite(instanceId, rows);
     }
+    private void writeSqlServerDiagnosticEvents(Long instanceId, List<SqlServerDiagnosticEventPoint> points) {
+        if (points == null || points.isEmpty()) return;
+        var rows = points.stream().map(p -> new TsSqlServerDiagnosticEventWriter.Event(
+                p.eventType(), p.databaseName(), p.severity(), p.fingerprint(), p.payload(),
+                p.sensitiveRedacted(), p.eventTimeMillis())).toList();
+        tsSqlServerDiagnosticEventWriter.batchWrite(instanceId, rows);
+    }
+
     private void writePgQueryStats(Long instanceId, List<PgQueryStatPoint> points) {
         if (points == null || points.isEmpty()) return;
         List<TsPgQueryStatWriter.TsPgQueryStatPoint> rows = points.stream()
@@ -577,7 +590,7 @@ public class CollectRunner {
                         p.deltaRowsExamined(), p.deltaRowsSent(),
                         p.deltaLockTime(), p.deltaSortRows(), p.deltaNoIndexUsed(),
                         p.deltaTmpTables(), p.deltaTmpDiskTables(),
-                        p.timestampMillis()))
+                        p.deltaPhysicalReads(), p.deltaWrites(), p.timestampMillis()))
                 .toList();
         tsTopSqlWriter.batchWrite(rows);
     }

@@ -35,14 +35,28 @@ public record TopSqlPoint(String schemaName, String digest, String digestText,
                           Long deltaRowsExamined, Long deltaRowsSent,
                           Long deltaLockTime, Long deltaSortRows, Long deltaNoIndexUsed,
                           Long deltaTmpTables, Long deltaTmpDiskTables,
+                          Long deltaPhysicalReads, Long deltaWrites,
                           long timestampMillis) {
+
+    /** 兼容 MySQL/PG 现有完整构造。 */
+    public TopSqlPoint(String schemaName, String digest, String digestText,
+                       long countStar, long sumTimerWait, long rowsExamined, long rowsSent,
+                       Long deltaCount, Long deltaTimerWait, Long avgTimerWaitUs,
+                       Long deltaRowsExamined, Long deltaRowsSent,
+                       Long deltaLockTime, Long deltaSortRows, Long deltaNoIndexUsed,
+                       Long deltaTmpTables, Long deltaTmpDiskTables, long timestampMillis) {
+        this(schemaName,digest,digestText,countStar,sumTimerWait,rowsExamined,rowsSent,
+                deltaCount,deltaTimerWait,avgTimerWaitUs,deltaRowsExamined,deltaRowsSent,
+                deltaLockTime,deltaSortRows,deltaNoIndexUsed,deltaTmpTables,deltaTmpDiskTables,
+                null,null,timestampMillis);
+    }
 
     /** 兼容旧构造（纯累积快照，delta 全部 null）。 */
     public TopSqlPoint(String schemaName, String digest, String digestText,
                        long countStar, long sumTimerWait, long rowsExamined, long rowsSent,
                        long timestampMillis) {
         this(schemaName, digest, digestText, countStar, sumTimerWait, rowsExamined, rowsSent,
-                null, null, null, null, null, null, null, null, null, null, timestampMillis);
+                null, null, null, null, null, null, null, null, null, null, null, null, timestampMillis);
     }
 
     /** 是否拥有有效差值数据（false = 首次采样或计数器回绕，不应落库）。 */

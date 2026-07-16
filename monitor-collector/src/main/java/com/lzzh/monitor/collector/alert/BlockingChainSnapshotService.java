@@ -59,7 +59,9 @@ public class BlockingChainSnapshotService {
             "pg.locks.waiting",
             "pg.blocked_sessions",
             "pg.trx.max_seconds",
-            "pg.delta.deadlocks");
+            "pg.delta.deadlocks",
+            "sqlserver.blocked_sessions",
+            "sqlserver.deadlocks_per_sec");
 
     /** 锁相关场景编码。 */
     private static final Set<String> LOCK_SCENARIOS = Set.of(
@@ -209,6 +211,24 @@ public class BlockingChainSnapshotService {
     }
 
     static String blockingChainSql(String dbType, String dbVersion) {
+        if ("SQLSERVER".equalsIgnoreCase(dbType) || "SQL Server".equalsIgnoreCase(dbType)) {
+            return """
+                    SELECT DATEDIFF(second,r.start_time,SYSDATETIME()) AS wait_age_secs,
+                           COALESCE(OBJECT_SCHEMA_NAME(p.object_id,r.database_id)+'.'+OBJECT_NAME(p.object_id,r.database_id),
+                                    DB_NAME(r.database_id)) AS locked_table,
+                           r.wait_type AS locked_type, r.session_id AS waiting_pid,
+                           LEFT(wt.text,500) AS waiting_query, r.blocking_session_id AS blocking_pid,
+                           LEFT(bt.text,500) AS blocking_query
+                      FROM sys.dm_exec_requests r
+                      OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) wt
+                      LEFT JOIN sys.dm_exec_requests br ON br.session_id=r.blocking_session_id
+                      OUTER APPLY sys.dm_exec_sql_text(br.sql_handle) bt
+                      LEFT JOIN sys.dm_tran_locks l ON l.request_session_id=r.session_id
+                      LEFT JOIN sys.partitions p ON p.hobt_id=l.resource_associated_entity_id
+                     WHERE r.blocking_session_id>0 AND r.session_id<>@@SPID
+                     ORDER BY wait_age_secs DESC
+                    """;
+        }
         if ("PostgreSQL".equalsIgnoreCase(dbType) || "POSTGRESQL".equalsIgnoreCase(dbType)) {
             return """
                     SELECT GREATEST(0, EXTRACT(EPOCH FROM

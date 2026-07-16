@@ -116,4 +116,80 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                 WHERE d.database_id=DB_ID()
                 """;
     }
+
+
+    @Override
+    public String queryStoreTopSql() {
+        return """
+                SELECT TOP (50) DB_NAME() AS database_name,
+                       CONVERT(varchar(64), q.query_hash, 2) AS digest,
+                       LEFT(qt.query_sql_text, 2000) AS sql_text,
+                       SUM(rs.count_executions) AS executions,
+                       SUM(rs.avg_duration * rs.count_executions) AS duration_us,
+                       SUM(rs.avg_logical_io_reads * rs.count_executions) AS logical_reads,
+                       SUM(rs.avg_physical_io_reads * rs.count_executions) AS physical_reads,
+                       SUM(rs.avg_logical_io_writes * rs.count_executions) AS writes,
+                       SUM(rs.avg_rowcount * rs.count_executions) AS rows_count
+                  FROM sys.query_store_query_text qt
+                  JOIN sys.query_store_query q ON q.query_text_id=qt.query_text_id
+                  JOIN sys.query_store_plan p ON p.query_id=q.query_id
+                  JOIN sys.query_store_runtime_stats rs ON rs.plan_id=p.plan_id
+                  JOIN sys.query_store_runtime_stats_interval i ON i.runtime_stats_interval_id=rs.runtime_stats_interval_id
+                 WHERE i.end_time >= DATEADD(hour,-1,SYSUTCDATETIME())
+                 GROUP BY q.query_hash, qt.query_sql_text
+                 ORDER BY duration_us DESC
+                """;
+    }
+
+    @Override
+    public String dmvTopSql() {
+        return """
+                SELECT TOP (50) DB_NAME(st.dbid) AS database_name,
+                       CONVERT(varchar(64), qs.query_hash, 2) AS digest,
+                       LEFT(SUBSTRING(st.text,(qs.statement_start_offset/2)+1,
+                         ((CASE qs.statement_end_offset WHEN -1 THEN DATALENGTH(st.text)
+                           ELSE qs.statement_end_offset END-qs.statement_start_offset)/2)+1),2000) AS sql_text,
+                       qs.execution_count AS executions, qs.total_elapsed_time AS duration_us,
+                       qs.total_logical_reads AS logical_reads, qs.total_physical_reads AS physical_reads,
+                       qs.total_logical_writes AS writes, qs.total_rows AS rows_count
+                  FROM sys.dm_exec_query_stats qs
+                  CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) st
+                 ORDER BY qs.total_elapsed_time DESC
+                """;
+    }
+
+    @Override
+    public String deadlockEventsSql() {
+        return """
+                SELECT TOP (20)
+                       x.event_data.value('(event/@timestamp)[1]','datetime2') AS event_time,
+                       CAST(x.event_data.query('.') AS nvarchar(max)) AS event_xml
+                  FROM (SELECT CAST(t.target_data AS xml) AS target_data
+                          FROM sys.dm_xe_session_targets t
+                          JOIN sys.dm_xe_sessions s ON s.address=t.event_session_address
+                         WHERE s.name='system_health' AND t.target_name='ring_buffer') d
+                  CROSS APPLY d.target_data.nodes('RingBufferTarget/event[@name="xml_deadlock_report"]') x(event_data)
+                 ORDER BY event_time DESC
+                """;
+    }
+
+    @Override
+    public String blockingChainSql() {
+        return """
+                SELECT DATEDIFF(second,r.start_time,SYSDATETIME()) AS wait_age_secs,
+                       COALESCE(OBJECT_SCHEMA_NAME(p.object_id,r.database_id)+'.'+OBJECT_NAME(p.object_id,r.database_id),
+                                DB_NAME(r.database_id)) AS locked_table,
+                       r.wait_type AS locked_type, r.session_id AS waiting_pid,
+                       LEFT(wt.text,500) AS waiting_query, r.blocking_session_id AS blocking_pid,
+                       LEFT(bt.text,500) AS blocking_query
+                  FROM sys.dm_exec_requests r
+                  OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) wt
+                  LEFT JOIN sys.dm_exec_requests br ON br.session_id=r.blocking_session_id
+                  OUTER APPLY sys.dm_exec_sql_text(br.sql_handle) bt
+                  LEFT JOIN sys.dm_tran_locks l ON l.request_session_id=r.session_id
+                  LEFT JOIN sys.partitions p ON p.hobt_id=l.resource_associated_entity_id
+                 WHERE r.blocking_session_id>0 AND r.session_id<>@@SPID
+                 ORDER BY wait_age_secs DESC
+                """;
+    }
 }
