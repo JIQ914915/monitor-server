@@ -36,6 +36,11 @@ public class VariablesItem implements MySqlMetricItem {
             "innodb_log_files_in_group",
             "max_allowed_packet",
             "max_binlog_size",
+            "binlog_expire_logs_seconds",
+            "expire_logs_days",
+            "performance_schema_digests_size",
+            "performance_schema_max_digest_length",
+            "performance_schema_max_sql_text_length",
             "table_open_cache",
             "thread_cache_size",
             "open_files_limit",
@@ -49,6 +54,8 @@ public class VariablesItem implements MySqlMetricItem {
     /** 关注的文本型关键参数白名单（覆盖变更存储）。 */
     private static final Set<String> WANTED_TEXT = Set.of(
             "sql_mode",
+            "performance_schema",
+            "query_cache_type",
             "version",
             "time_zone",
             "character_set_server",

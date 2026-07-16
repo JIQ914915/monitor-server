@@ -46,12 +46,14 @@ public class BinlogStatusItem implements MySqlMetricItem {
                         MySqlVersionAdapter adapter, MetricSink sink) throws SQLException {
         long ts = System.currentTimeMillis();
         long totalBytes = 0;
+        int fileCount = 0;
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
             try (ResultSet rs = st.executeQuery("SHOW BINARY LOGS")) {
                 // 结果集：Log_name, File_size [, Encrypted（8.0+）]
                 while (rs.next()) {
                     totalBytes += rs.getLong(2);
+                    fileCount++;
                 }
             }
         } catch (SQLException e) {
@@ -66,5 +68,6 @@ public class BinlogStatusItem implements MySqlMetricItem {
             throw e;
         }
         sink.addNumeric("mysql.binlog.total_bytes", totalBytes, ts);
+        sink.addNumeric("mysql.capacity.binlog_file_count", fileCount, ts);
     }
 }

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.MySqlDiagnosticMapper">
+  <select id="selectConfigChanges" resultType="java.util.Map">
+    SELECT metric_code, previous_value, value_text, collect_time FROM (
+      SELECT metric_code,value_text,collect_time,
+             lag(value_text) OVER(PARTITION BY metric_code ORDER BY collect_time) previous_value
+        FROM metric_text_data_1d
+       WHERE instance_id=#{instanceId} AND metric_code LIKE 'mysql.var_text.%'
+    ) h
+    WHERE collect_time&gt;=#{since} AND previous_value IS DISTINCT FROM value_text
+    ORDER BY collect_time DESC LIMIT #{limit}
+  </select>
+  <select id="selectConfigLatest" resultType="java.util.Map">
+    SELECT DISTINCT ON(metric_code) metric_code,value_text,collect_time
+      FROM metric_text_data_1d
+     WHERE instance_id=#{instanceId} AND metric_code LIKE 'mysql.var_text.%'
+     ORDER BY metric_code,collect_time DESC
+  </select>
+  <select id="selectNumericConfigChanges" resultType="java.util.Map">
+    SELECT metric_code,previous_value,value AS value_text,collect_time FROM (
+      SELECT metric_code,value,collect_time,
+             lag(value) OVER(PARTITION BY metric_code ORDER BY collect_time) previous_value
+        FROM metric_data_1d
+       WHERE instance_id=#{instanceId} AND metric_code LIKE 'mysql.var.%'
+    ) h
+    WHERE collect_time&gt;=#{since} AND previous_value IS DISTINCT FROM value
+    ORDER BY collect_time DESC LIMIT #{limit}
+  </select>
+  <select id="selectNumericConfigLatest" resultType="java.util.Map">
+    SELECT DISTINCT ON(metric_code) metric_code,value AS value_text,collect_time
+      FROM metric_data_1d
+     WHERE instance_id=#{instanceId} AND metric_code LIKE 'mysql.var.%'
+     ORDER BY metric_code,collect_time DESC
+  </select>
+  <select id="selectAutoIncrementRisks" resultType="java.util.Map">
+    SELECT object_name,value,collect_time FROM (
+      SELECT DISTINCT ON(object_name) object_name,value,collect_time
+        FROM metric_capacity_object
+       WHERE instance_id=#{instanceId} AND metric_code='mysql.capacity.auto_increment_usage_pct'
+         AND collect_time&gt;=now()-interval '2 days'
+       ORDER BY object_name,collect_time DESC
+    ) latest
+    ORDER BY value DESC LIMIT #{limit}
+  </select>
+  <select id="selectTopSql" resultType="java.util.Map">
+    SELECT schema_name,digest,max(digest_text) digest_text,
+           sum(delta_count) exec_count,sum(delta_timer_wait) total_timer_wait,
+           sum(delta_rows_examined) rows_examined,sum(delta_lock_time) lock_time
+      FROM metric_top_sql
+     WHERE instance_id=#{instanceId} AND collect_time&gt;=#{from} AND collect_time&lt;=#{to}
+     GROUP BY schema_name,digest ORDER BY total_timer_wait DESC LIMIT #{limit}
+  </select>
+  <select id="selectLatestPlan" resultType="java.util.Map">
+    SELECT id,plan_hash,node_summary,captured_at FROM mysql_plan_history
+     WHERE instance_id=#{instanceId} AND schema_name=#{schemaName} AND sql_hash=#{sqlHash}
+     ORDER BY captured_at DESC LIMIT 1
+  </select>
+  <insert id="insertPlan" useGeneratedKeys="true" keyProperty="plan.id">
+    INSERT INTO mysql_plan_history
+      (instance_id,schema_name,sql_hash,plan_hash,query_text,plan_format,plan_json,node_summary,
+       risk_level,conclusion,previous_plan_hash,plan_changed,captured_by,captured_at)
+    VALUES
+      (#{plan.instanceId},#{plan.schemaName},#{plan.sqlHash},#{plan.planHash},#{plan.queryText},
+       #{plan.planFormat},CAST(#{plan.planJson} AS jsonb),CAST(#{plan.summaryJson} AS jsonb),
+       #{plan.riskLevel},#{plan.conclusion},#{plan.previousPlanHash},#{plan.planChanged},#{plan.capturedBy},now())
+    ON CONFLICT(instance_id,schema_name,sql_hash,plan_hash) DO NOTHING
+  </insert>
+  <select id="selectRecentPlans" resultType="java.util.Map">
+    SELECT id,schema_name,sql_hash,plan_hash,previous_plan_hash,plan_changed,plan_format,
+           node_summary,risk_level,conclusion,captured_by,captured_at
+      FROM mysql_plan_history
+     WHERE instance_id=#{instanceId} AND captured_at&gt;=#{from} AND captured_at&lt;=#{to}
+     ORDER BY captured_at DESC LIMIT #{limit}
+  </select>
+  <select id="selectLatestSecuritySnapshotHash" resultType="java.lang.String">
+    SELECT snapshot_hash FROM mysql_security_snapshot
+     WHERE instance_id=#{instanceId} ORDER BY captured_at DESC LIMIT 1
+  </select>
+  <insert id="insertSecuritySnapshot" useGeneratedKeys="true" keyProperty="snapshot.id">
+    INSERT INTO mysql_security_snapshot(instance_id,snapshot_hash,snapshot_json,change_summary,captured_at)
+    VALUES(#{snapshot.instanceId},#{snapshot.snapshotHash},CAST(#{snapshot.snapshotJson} AS jsonb),
+           #{snapshot.changeSummary},now())
+  </insert>
+  <select id="selectPlanHistory" resultType="java.util.Map">
+    SELECT id,schema_name,sql_hash,plan_hash,previous_plan_hash,plan_changed,plan_format,
+           plan_json,node_summary,risk_level,conclusion,captured_by,captured_at
+      FROM mysql_plan_history
+     WHERE instance_id=#{instanceId} AND schema_name=#{schemaName} AND sql_hash=#{sqlHash}
+     ORDER BY captured_at DESC LIMIT #{limit}
+  </select>
+</mapper>

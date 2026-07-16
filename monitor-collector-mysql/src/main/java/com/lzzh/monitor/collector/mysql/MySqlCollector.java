@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 
 /** MySQL 采集器：从缓存取只读目标连接 → 按采集项逐项采集 → 汇总标准化指标点。 */
-@CollectorFor(dbType = DbType.MYSQL, versions = {"5.6", "5.7", "8.0"})
+@CollectorFor(dbType = DbType.MYSQL, versions = {"5.6", "5.7", "8.0", "8.4"})
 public class MySqlCollector extends AbstractDatabaseCollector {
 
     private static final Logger log = LoggerFactory.getLogger(MySqlCollector.class);

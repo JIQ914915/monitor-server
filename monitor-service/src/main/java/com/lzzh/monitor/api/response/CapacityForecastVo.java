@@ -41,4 +41,16 @@ public class CapacityForecastVo {
 
     @Schema(description = "估算结论或无法估算原因（面向用户的一句话说明）")
     private String note;
+
+    @Schema(description = "预测状态字典 mysql_prediction_status：stable/risk/insufficient")
+    private String predictionStatus;
+
+    @Schema(description = "近7天日均增长（字节/天）")
+    private Double dailyGrowth7dBytes;
+
+    @Schema(description = "近30天日均增长（字节/天）")
+    private Double dailyGrowth30dBytes;
+
+    @Schema(description = "预计耗尽日期（yyyy-MM-dd）")
+    private String estimatedExhaustionDate;
 }

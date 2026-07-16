@@ -5,6 +5,8 @@ import com.lzzh.monitor.api.request.SlowSqlDigestDetailRequest;
 import com.lzzh.monitor.api.request.SlowSqlDigestPageRequest;
 import com.lzzh.monitor.api.request.SlowSqlDigestTrendRequest;
 import com.lzzh.monitor.api.request.SlowSqlExplainRequest;
+import com.lzzh.monitor.api.request.SlowSqlPlanHistoryRequest;
+import com.lzzh.monitor.api.response.MySqlPlanHistoryVo;
 import com.lzzh.monitor.api.request.SlowSqlOptimizeMarkRequest;
 import com.lzzh.monitor.api.request.SlowSqlRecordPageRequest;
 import com.lzzh.monitor.api.request.SlowSqlSamplePageRequest;
@@ -144,11 +146,16 @@ public class SlowSqlController {
     }
 
     @Operation(
+            summary = "人工计划历史",
+            description = "按实例、Schema、SQL Hash 返回最近 50 条人工计划；用于优化前后 Plan Hash 与关键节点比较")
+    @PostMapping("/plan/history")
+    public Result<List<MySqlPlanHistoryVo>> planHistory(@Valid @RequestBody SlowSqlPlanHistoryRequest req) {
+        return Result.ok(slowSqlExplainService.history(req));
+    }
+
+    @Operation(
             summary = "慢SQL时段对比",
-            description = "对比当前窗口与昨日同时段、上周同时段的慢SQL整体量级（指纹数/执行次数/平均耗时），"
-                    + "并返回当前窗口 Top 10 SQL（按总耗时降序）在两个对比窗口中的排名与平均耗时变化。"
-                    + "from/to 不传默认最近 24 小时。对比窗口未进入 Top 50 的指纹排名返回 null（视为新上榜）"
-    )
+            description = "对比当前窗口与昨日同时段、上周同时段的慢SQL整体量级，并返回当前窗口 Top SQL 在对比窗口中的排名变化")
     @PostMapping("/window-compare")
     public Result<SlowSqlWindowCompareVo> windowCompare(@Valid @RequestBody SlowSqlWindowRequest req) {
         return Result.ok(slowSqlQueryService.windowCompare(req));

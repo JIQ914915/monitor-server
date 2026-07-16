@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /** 慢 SQL 实时执行计划结果（目标库 EXPLAIN 输出，按列名+行值透传）。 */
 @Data
@@ -14,4 +15,14 @@ public class SlowSqlExplainVo {
 
     @Schema(description = "EXPLAIN 结果行，每行与 columns 对齐，值统一转字符串（NULL 为 null）")
     private List<List<String>> rows;
+    private String planFormat;
+    private Object plan;
+    private List<Map<String,Object>> nodeSummary;
+    private String sqlHash;
+    private String planHash;
+    private String previousPlanHash;
+    private boolean planChanged;
+    private List<Map<String,Object>> planDiff;
+    private String riskLevel;
+    private String conclusion;
 }

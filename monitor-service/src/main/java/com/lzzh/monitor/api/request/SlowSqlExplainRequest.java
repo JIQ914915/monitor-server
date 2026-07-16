@@ -20,4 +20,10 @@ public class SlowSqlExplainRequest {
             requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "sql 不能为空")
     private String sql;
+
+    @Schema(description = "计划格式：json/tree/tabular；默认 json，绝不执行 ANALYZE")
+    private String planFormat = "json";
+
+    @Schema(description = "是否保存人工获取的计划历史，默认 true")
+    private boolean saveHistory = true;
 }

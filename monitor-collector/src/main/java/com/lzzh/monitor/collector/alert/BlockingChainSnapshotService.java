@@ -148,6 +148,7 @@ public class BlockingChainSnapshotService {
             try (ResultSet rs = st.executeQuery(sql)) {
                 while (rs.next() && rows.size() < MAX_ROWS) {
                     Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("lockCategory", "row_lock");
                     row.put("waitAgeSecs", rs.getObject("wait_age_secs"));
                     row.put("lockedTable", rs.getString("locked_table"));
                     row.put("lockedType", rs.getString("locked_type"));
@@ -158,8 +159,45 @@ public class BlockingChainSnapshotService {
                     rows.add(row);
                 }
             }
+            if (("MYSQL".equalsIgnoreCase(target.getDbType()) || "MySQL".equalsIgnoreCase(target.getDbType()))
+                    && !String.valueOf(target.getDbVersion()).startsWith("5.6") && rows.size() < MAX_ROWS) {
+                try (Statement mdl = conn.createStatement()) {
+                    mdl.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+                    mdl.setMaxRows(MAX_ROWS - rows.size());
+                    try (ResultSet rs = mdl.executeQuery(metadataLockSql())) {
+                        while (rs.next() && rows.size() < MAX_ROWS) {
+                            Map<String, Object> row = new LinkedHashMap<>();
+                            row.put("lockCategory", "metadata_lock");
+                            row.put("waitAgeSecs", rs.getObject("wait_age_secs"));
+                            row.put("lockedTable", rs.getString("locked_table"));
+                            row.put("lockedType", rs.getString("locked_type"));
+                            row.put("waitingPid", rs.getObject("waiting_pid"));
+                            row.put("waitingQuery", truncate(rs.getString("waiting_query"), 500));
+                            row.put("blockingPid", rs.getObject("blocking_pid"));
+                            row.put("blockingQuery", truncate(rs.getString("blocking_query"), 500));
+                            rows.add(row);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.debug("Metadata Lock 快照不可用 instanceId={}: {}", target.getId(), e.getMessage());
+                }
+            }
         }
         return rows;
+    }
+
+    static String metadataLockSql() {
+        return "SELECT COALESCE(tw.PROCESSLIST_TIME,0) wait_age_secs, "
+                + "CONCAT(COALESCE(w.OBJECT_SCHEMA,''),'.',COALESCE(w.OBJECT_NAME,'')) locked_table, "
+                + "w.LOCK_TYPE locked_type,tw.PROCESSLIST_ID waiting_pid,tw.PROCESSLIST_INFO waiting_query, "
+                + "tb.PROCESSLIST_ID blocking_pid,tb.PROCESSLIST_INFO blocking_query "
+                + "FROM performance_schema.metadata_locks w "
+                + "JOIN performance_schema.threads tw ON tw.THREAD_ID=w.OWNER_THREAD_ID "
+                + "LEFT JOIN performance_schema.metadata_locks b ON b.OBJECT_TYPE=w.OBJECT_TYPE "
+                + "AND b.OBJECT_SCHEMA <=> w.OBJECT_SCHEMA AND b.OBJECT_NAME <=> w.OBJECT_NAME "
+                + "AND b.LOCK_STATUS='GRANTED' AND b.OWNER_THREAD_ID<>w.OWNER_THREAD_ID "
+                + "LEFT JOIN performance_schema.threads tb ON tb.THREAD_ID=b.OWNER_THREAD_ID "
+                + "WHERE w.LOCK_STATUS='PENDING' ORDER BY wait_age_secs DESC";
     }
 
     /**

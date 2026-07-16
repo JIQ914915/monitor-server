@@ -31,6 +31,7 @@ import com.lzzh.monitor.dao.mapper.CollectLogMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.InstanceGroupMapper;
 import com.lzzh.monitor.dao.mapper.MetricDefinitionMapper;
+import com.lzzh.monitor.dao.mapper.MySqlDiagnosticMapper;
 import com.lzzh.monitor.dao.mapper.MonitorReportMapper;
 import com.lzzh.monitor.dao.mapper.ReportScheduleMapper;
 import com.lzzh.monitor.dao.mapper.ReportStatsMapper;
@@ -151,6 +152,8 @@ public class ReportServiceImpl implements ReportService {
     private InstanceRuntimeMetadataService runtimeMetadataService;
     @Resource
     private PostgreSqlPhase3Service postgreSqlPhase3Service;
+    @Resource
+    private MySqlDiagnosticMapper mySqlDiagnosticMapper;
 
     /** 解析实例数据库类型；缺失或未支持类型直接失败，禁止静默按 MySQL 处理。 */
     private DbType resolveDbType(DbInstance ins) {
@@ -273,6 +276,16 @@ public class ReportServiceImpl implements ReportService {
                 prefix = "ALERT";
                 title = "告警分析报告";
                 sections = buildAlertSections(instances, from, to);
+            }
+            case "capacity" -> {
+                List<String> unsupported = instances.stream().filter(ins -> resolveDbType(ins) != DbType.MYSQL)
+                        .map(DbInstance::getName).toList();
+                if (!unsupported.isEmpty()) {
+                    throw new BusinessException("容量专项报告当前仅支持 MySQL 实例: " + String.join("、", unsupported));
+                }
+                prefix = "CAP";
+                title = "MySQL 容量专项报告";
+                sections = buildMySqlPreventionSections(instances, from, to, true);
             }
             case "security" -> {
                 List<String> unsupported = instances.stream()
@@ -653,7 +666,77 @@ public class ReportServiceImpl implements ReportService {
         if (pgRestoreRisk > 0) tips.add(pgRestoreRisk + " 个 PostgreSQL 实例未在 90 天内完成并通过恢复演练；WAL 归档正常不等于可恢复。");
         if (tips.isEmpty()) tips.add("本次巡检未发现明显风险，请保持当前监控与告警策略。");
         sections.add(listSection(pgRiskRows.isEmpty() ? "九、优化建议" : "十一、优化建议", tips));
+        sections.addAll(buildMySqlPreventionSections(instances, from, to, false));
         return sections;
+    }
+
+    private List<Map<String, Object>> buildMySqlPreventionSections(List<DbInstance> instances,
+                                                                    OffsetDateTime from, OffsetDateTime to,
+                                                                    boolean capacityOnly) {
+        List<Map<String, Object>> sections = new ArrayList<>();
+        List<Map<String, Object>> capabilityRows = new ArrayList<>();
+        List<Map<String, Object>> capacityRows = new ArrayList<>();
+        List<Map<String, Object>> configRows = new ArrayList<>();
+        for (DbInstance ins : instances) {
+            if (resolveDbType(ins) != DbType.MYSQL) continue;
+            if (!capacityOnly) {
+                List<Map<String, Object>> snapshot = ins.getMysqlCapabilities();
+                if (snapshot == null || snapshot.isEmpty()) {
+                    capabilityRows.add(Map.of("instance", ins.getName(), "capability", "能力探测", "status", "数据不足",
+                            "message", "尚无能力探测快照，请在实例实时概况执行一次探测"));
+                } else {
+                    snapshot.stream().filter(c -> !"available".equals(String.valueOf(c.get("status")))).limit(20).forEach(c -> {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("instance", ins.getName()); row.put("capability", c.get("name"));
+                        row.put("status", dictLabel("capability_status", String.valueOf(c.get("status"))));
+                        row.put("message", c.get("message")); capabilityRows.add(row);
+                    });
+                }
+            }
+            var forecast = metricQueryService.capacityForecast(ins.getId());
+            Map<String, Double> hourly = metricLatestDao.latestFrom1h(ins.getId(),
+                    List.of("mysql.binlog.total_bytes", "mysql.capacity.binlog_file_count"));
+            Map<String, Double> daily = metricLatestDao.latestFrom1d(ins.getId(),
+                    List.of("mysql.capacity.auto_increment_max_usage_pct"));
+            Map<String, Object> cap = new LinkedHashMap<>(); cap.put("instance", ins.getName());
+            cap.put("status", dictLabel("mysql_prediction_status", forecast.getPredictionStatus()));
+            cap.put("current", forecast.getCurrentBytes() == null ? "-" : gb(forecast.getCurrentBytes()));
+            cap.put("growth7", forecast.getDailyGrowth7dBytes() == null ? "-" : gb(Math.round(forecast.getDailyGrowth7dBytes())) + "/天");
+            cap.put("growth30", forecast.getDailyGrowth30dBytes() == null ? "-" : gb(Math.round(forecast.getDailyGrowth30dBytes())) + "/天");
+            cap.put("exhaustion", forecast.getEstimatedExhaustionDate() == null ? "-" : forecast.getEstimatedExhaustionDate());
+            cap.put("autoIncrement", daily.get("mysql.capacity.auto_increment_max_usage_pct") == null ? "-" : pct(daily.get("mysql.capacity.auto_increment_max_usage_pct")) + "%");
+            cap.put("binlog", hourly.get("mysql.binlog.total_bytes") == null ? "-" : gb(Math.round(hourly.get("mysql.binlog.total_bytes"))));
+            cap.put("conclusion", forecast.getNote()); capacityRows.add(cap);
+            if (!capacityOnly) {
+                List<Map<String,Object>> changes = new ArrayList<>(mySqlDiagnosticMapper.selectConfigChanges(
+                        ins.getId(), Timestamp.from(from.toInstant()), 20));
+                changes.addAll(mySqlDiagnosticMapper.selectNumericConfigChanges(ins.getId(), Timestamp.from(from.toInstant()), 20));
+                changes.stream().sorted((a,b) -> Long.compare(reportTime(b.get("collect_time")), reportTime(a.get("collect_time"))))
+                        .limit(20).forEach(c -> {
+                    Map<String,Object> row = new LinkedHashMap<>(); row.put("instance", ins.getName());
+                    row.put("parameter", String.valueOf(c.get("metric_code")).replace("mysql.var_text.", "").replace("mysql.var.", ""));
+                    row.put("before", c.get("previous_value")); row.put("after", c.get("value_text"));
+                    row.put("time", String.valueOf(c.get("collect_time"))); row.put("adviceType", dictLabel("mysql_advice_type", "info"));
+                    configRows.add(row);
+                });
+            }
+        }
+        if (!capacityOnly) sections.add(tableSection("监控能力完整性", List.of(
+                col("instance","实例"), col("capability","受限能力"), col("status","状态"), col("message","原因与建议")),
+                capabilityRows, "所有已探测能力均可用"));
+        sections.add(tableSection("容量趋势与耗尽风险", List.of(
+                col("instance","实例"), col("status","状态"), col("current","当前容量(GB)"),
+                col("growth7","近7天增长"), col("growth30","近30天增长"), col("exhaustion","预计风险日期"),
+                col("autoIncrement","自增ID最高使用率"), col("binlog","Binlog占用(GB)"), col("conclusion","结论")),
+                capacityRows, "暂无容量数据"));
+        if (!capacityOnly) sections.add(tableSection("关键配置变化", List.of(
+                col("instance","实例"), col("parameter","参数"), col("before","变更前"), col("after","变更后"),
+                col("time","发现时间"), col("adviceType","建议类型")), configRows, "统计时段内未发现关键配置变化"));
+        return sections;
+    }
+
+    private static long reportTime(Object value) {
+        return value instanceof java.util.Date date ? date.getTime() : 0L;
     }
 
     // ── 性能分析报告（单实例） ────────────────────────────────────────────────
@@ -801,6 +884,18 @@ public class ReportServiceImpl implements ReportService {
         }
         tips.add("建议保持定期巡检报告，跟踪指标趋势变化。");
         sections.add(listSection("六、优化建议", tips));
+        if (!pg) {
+            List<Map<String,Object>> planRows = mySqlDiagnosticMapper.selectRecentPlans(ins.getId(), tFrom, tTo, 20).stream().map(plan -> {
+                Map<String,Object> row = new LinkedHashMap<>(); row.put("capturedAt", plan.get("captured_at"));
+                row.put("schema", plan.get("schema_name")); row.put("sqlHash", plan.get("sql_hash"));
+                row.put("planHash", plan.get("plan_hash")); row.put("change", dictLabel("mysql_plan_change_status", Boolean.TRUE.equals(plan.get("plan_changed")) ? "changed" : "unchanged"));
+                row.put("risk", dictLabel("mysql_risk_level", String.valueOf(plan.get("risk_level")))); row.put("conclusion", plan.get("conclusion")); return row;
+            }).toList();
+            sections.add(tableSection("七、人工计划与变化", List.of(
+                    col("capturedAt","获取时间"), col("schema","Schema"), col("sqlHash","SQL Hash"),
+                    col("planHash","Plan Hash"), col("change","变化"), col("risk","风险"), col("conclusion","结论")),
+                    planRows, "统计时段内没有用户主动获取的执行计划"));
+        }
         return sections;
     }
 
@@ -1258,7 +1353,60 @@ public class ReportServiceImpl implements ReportService {
                         kv("最近触发", str(fmt(event.getLastTriggerTime())))
                 )));
 
-        // 8. 后续预防建议
+        // 8. 事件现场：阻塞链快照与触发前 24 小时配置变化。
+        if (event.getBlockingChainSnapshot() != null) {
+            Object rawRows = event.getBlockingChainSnapshot().get("rows");
+            List<Map<String, Object>> rows = new ArrayList<>();
+            if (rawRows instanceof List<?> list) {
+                for (Object item : list) if (item instanceof Map<?, ?> map) {
+                    Map<String,Object> row = new LinkedHashMap<>();
+                    map.forEach((key,value) -> row.put(String.valueOf(key), value)); rows.add(row);
+                }
+            }
+            sections.add(tableSection("八、阻塞链现场（告警触发快照）", List.of(
+                    col("lockCategory","锁类型"), col("lockedTable","被锁对象"), col("waitAgeSecs","等待秒数"),
+                    col("waitingPid","等待会话"), col("waitingQuery","等待 SQL"), col("blockingPid","阻塞会话"),
+                    col("blockingQuery","阻塞 SQL")), rows, String.valueOf(event.getBlockingChainSnapshot().getOrDefault("error", "快照中未发现阻塞会话"))));
+        }
+        if (event.getInstanceId() != null && "MYSQL".equalsIgnoreCase(resolveDbTypeCode(event.getInstanceId()))) {
+            OffsetDateTime trigger = event.getTriggerTime() == null ? now : event.getTriggerTime();
+            List<Map<String,Object>> changes = new ArrayList<>(mySqlDiagnosticMapper.selectConfigChanges(
+                    event.getInstanceId(), Timestamp.from(trigger.minusHours(24).toInstant()), 50));
+            changes.addAll(mySqlDiagnosticMapper.selectNumericConfigChanges(
+                    event.getInstanceId(), Timestamp.from(trigger.minusHours(24).toInstant()), 50));
+            List<Map<String,Object>> configRows = changes.stream()
+                    .filter(c -> reportTime(c.get("collect_time")) <= trigger.toInstant().toEpochMilli())
+                    .sorted((a,b) -> Long.compare(reportTime(b.get("collect_time")), reportTime(a.get("collect_time"))))
+                    .limit(50).toList();
+            sections.add(tableSection("九、告警前 24 小时关键配置变化", List.of(
+                    col("metric_code","参数"), col("previous_value","变更前"), col("value_text","变更后"),
+                    col("collect_time","发现时间")), configRows, "告警前 24 小时未发现关键配置变化"));
+        }
+
+        // 10-12. 触发窗口关联证据：等待、Top SQL、主机压力及昨日同窗口对比。
+        if (event.getInstanceId() != null && "MYSQL".equalsIgnoreCase(resolveDbTypeCode(event.getInstanceId()))) {
+            OffsetDateTime trigger = event.getTriggerTime() == null ? now : event.getTriggerTime();
+            long correlationFromMs = trigger.minusMinutes(30).toInstant().toEpochMilli(), correlationToMs = trigger.plusMinutes(30).toInstant().toEpochMilli();
+            Map<String,String> labels = Map.of("mysql.waits.io_file_ms","文件IO等待","mysql.waits.io_table_ms","表IO等待","mysql.waits.lock_ms","锁等待","mysql.waits.synch_ms","同步等待");
+            List<Map<String,Object>> waitRows = new ArrayList<>(); String dominant = "数据不足"; double dominantTotal = -1;
+            for (Map.Entry<String,String> metric : labels.entrySet()) {
+                MetricTrendVo trend = metricQueryService.metricTrend(event.getInstanceId(), metric.getKey(), correlationFromMs, correlationToMs, "1m");
+                List<MetricTrendVo.Point> points = trend.getPoints() == null ? List.of() : trend.getPoints();
+                double total = points.stream().mapToDouble(MetricTrendVo.Point::getValue).sum();
+                if (!points.isEmpty()) { Map<String,Object> row = new LinkedHashMap<>(); row.put("wait", metric.getValue()); row.put("total", pct(total)); row.put("peak", pct(points.stream().mapToDouble(MetricTrendVo.Point::getValue).max().orElse(0))); waitRows.add(row); if(total>dominantTotal){dominantTotal=total;dominant=metric.getValue();} }
+            }
+            sections.add(tableSection("十、触发前后等待证据（前后各 30 分钟）", List.of(col("wait","等待分类"),col("total","窗口累计"),col("peak","分钟峰值")), waitRows, "触发窗口缺少等待数据，不生成确定性根因"));
+            List<Map<String,Object>> sqlRows = new ArrayList<>();
+            for (Map<String,Object> sql : mySqlDiagnosticMapper.selectTopSql(event.getInstanceId(), Timestamp.from(trigger.minusMinutes(30).toInstant()), Timestamp.from(trigger.plusMinutes(30).toInstant()), 10)) { Map<String,Object> row=new LinkedHashMap<>(sql);row.put("period","触发窗口");sqlRows.add(row); }
+            for (Map<String,Object> sql : mySqlDiagnosticMapper.selectTopSql(event.getInstanceId(), Timestamp.from(trigger.minusDays(1).minusMinutes(30).toInstant()), Timestamp.from(trigger.minusDays(1).plusMinutes(30).toInstant()), 5)) { Map<String,Object> row=new LinkedHashMap<>(sql);row.put("period","昨日同窗口");sqlRows.add(row); }
+            sections.add(tableSection("十一、主要贡献 SQL 与历史同期", List.of(col("period","窗口"),col("schema_name","Schema"),col("digest_text","SQL指纹"),col("exec_count","执行次数"),col("rows_examined","扫描行数"),col("lock_time","锁等待")), sqlRows, "当前及昨日同窗口均缺少 Top SQL 数据"));
+            DbInstance eventInstance = instanceMapper.selectById(event.getInstanceId()); List<Map<String,Object>> hostRows = new ArrayList<>();
+            if (eventInstance != null && eventInstance.getHostId() != null) for (Map.Entry<String,String> metric : Map.of("host.cpu.usage","CPU使用率","host.cpu.iowait","CPU IO等待","host.diskio.util_max","磁盘IO利用率").entrySet()) { MetricTrendVo trend=metricQueryService.metricTrend(eventInstance.getHostId(),metric.getKey(),correlationFromMs,correlationToMs,"1m");List<MetricTrendVo.Point> points=trend.getPoints()==null?List.of():trend.getPoints();if(!points.isEmpty()){Map<String,Object> row=new LinkedHashMap<>();row.put("metric",metric.getValue());row.put("avg",pct(points.stream().mapToDouble(MetricTrendVo.Point::getValue).average().orElse(0))+"%");row.put("peak",pct(points.stream().mapToDouble(MetricTrendVo.Point::getValue).max().orElse(0))+"%");hostRows.add(row);}}
+            sections.add(tableSection("十二、相关主机压力", List.of(col("metric","指标"),col("avg","窗口均值"),col("peak","窗口峰值")), hostRows, "实例未关联主机或触发窗口缺少主机指标"));
+            sections.add(summarySection("关联分析结论", waitRows.isEmpty()?"触发窗口数据不足，无法生成确定性根因。":"主要等待为“"+dominant+"”；已列出同窗口 Top SQL、昨日同期和主机压力，需结合业务变更人工确认。", List.of()));
+        }
+
+        // 13. 后续预防建议
         List<String> prevention = new ArrayList<>();
         if (profile != null && profile.getActions() != null) {
             profile.getActions().stream()
@@ -1271,7 +1419,7 @@ public class ReportServiceImpl implements ReportService {
         }
         prevention.add("建议将本次处理经验沉淀到知识库，便于同类事件快速定位。");
         prevention.add("可在「报告中心」配置定期巡检报告，持续跟踪该实例的健康趋势。");
-        sections.add(listSection("八、后续预防建议", prevention));
+        sections.add(listSection("十三、后续预防建议", prevention));
         return sections;
     }
 

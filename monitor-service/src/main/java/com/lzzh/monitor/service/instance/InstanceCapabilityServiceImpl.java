@@ -61,6 +61,8 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
     private InstanceService instanceService;
     @Resource
     private PostgreSqlCapabilityProbe postgreSqlCapabilityProbe;
+    @Resource
+    private MySqlCapabilityProbe mySqlCapabilityProbe;
 
     @Override
     public List<InstanceCapabilityVo> detect(Long instanceId) {
@@ -167,6 +169,11 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         } else {
             list.add(InstanceCapabilityVo.of("host_metrics", "主机资源监控", AVAILABLE, null));
         }
+        CollectTargetVo mysqlTarget = instanceService.getCollectTarget(instanceId);
+        if (mysqlTarget != null) {
+            list.addAll(mySqlCapabilityProbe.probe(mysqlTarget));
+        }
+        persistMySqlCapabilities(instanceId, list);
         return list;
     }
 
@@ -218,6 +225,22 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
             list.addAll(postgreSqlCapabilityProbe.probe(target, version));
         }
         return list;
+    }
+
+    private void persistMySqlCapabilities(Long instanceId, List<InstanceCapabilityVo> capabilities) {
+        List<Map<String, Object>> snapshot = capabilities.stream().map(capability -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("capability", capability.getCapability());
+            item.put("name", capability.getName());
+            item.put("status", capability.getStatus());
+            item.put("message", capability.getMessage());
+            return item;
+        }).toList();
+        DbInstance update = new DbInstance();
+        update.setId(instanceId);
+        update.setMysqlCapabilities(snapshot);
+        update.setMysqlCapabilitiesDetectedAt(OffsetDateTime.now());
+        instanceMapper.updateById(update);
     }
 
     private void persistPostgreSqlCapabilities(Long instanceId, List<InstanceCapabilityVo> capabilities) {

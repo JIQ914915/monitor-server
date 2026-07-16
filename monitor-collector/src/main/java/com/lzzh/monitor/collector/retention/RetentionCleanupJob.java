@@ -40,6 +40,8 @@ public class RetentionCleanupJob {
     private void cleanupEventTable() {
         cleanup("event", "alert_event", retentionCleanupDao::deleteAlertEventsOlderThanDays);
         cleanup("event", "pg_operational_event", retentionCleanupDao::deletePgOperationalEventsOlderThanDays);
+        cleanup("event", "mysql_plan_history", retentionCleanupDao::deleteMySqlPlanHistoryOlderThanDays);
+        cleanup("event", "mysql_security_snapshot", retentionCleanupDao::deleteMySqlSecuritySnapshotsOlderThanDays);
     }
 
     private void cleanupLogTable() {

@@ -22,4 +22,11 @@ class BlockingChainSnapshotServiceTest {
         assertThat(BlockingChainSnapshotService.blockingChainSql("8.0"))
                 .contains("sys.innodb_lock_waits");
     }
+    @Test
+    void buildsMetadataLockSnapshotQueryFor57And84() {
+        assertThat(BlockingChainSnapshotService.metadataLockSql())
+                .contains("performance_schema.metadata_locks", "LOCK_STATUS='PENDING'", "blocking_pid");
+        assertThat(BlockingChainSnapshotService.blockingChainSql("8.4"))
+                .contains("sys.innodb_lock_waits");
+    }
 }

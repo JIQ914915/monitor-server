@@ -37,6 +37,11 @@ public class MetricQueryServiceImpl implements MetricQueryService {
             "mysql.var.innodb_log_files_in_group",
             "mysql.var.max_allowed_packet",
             "mysql.var.max_binlog_size",
+            "mysql.var.binlog_expire_logs_seconds",
+            "mysql.var.expire_logs_days",
+            "mysql.var.performance_schema_digests_size",
+            "mysql.var.performance_schema_max_digest_length",
+            "mysql.var.performance_schema_max_sql_text_length",
             "mysql.var.table_open_cache",
             "mysql.var.thread_cache_size",
             "mysql.var.open_files_limit",
@@ -49,6 +54,8 @@ public class MetricQueryServiceImpl implements MetricQueryService {
     /** 文本型参数白名单（与 VariablesItem.WANTED_TEXT 保持同步）。 */
     private static final List<String> TEXT_PARAM_CODES = Arrays.asList(
             "mysql.var_text.sql_mode",
+            "mysql.var_text.performance_schema",
+            "mysql.var_text.query_cache_type",
             "mysql.var_text.version",
             "mysql.var_text.time_zone",
             "mysql.var_text.character_set_server",
@@ -144,24 +151,32 @@ public class MetricQueryServiceImpl implements MetricQueryService {
         List<TsCapacityGrowthDao.CapacityGrowthPoint> points = capacityGrowthDao.queryGrowthTrend(instanceId, DEFAULT_DAYS);
         CapacityForecastVo result = new CapacityForecastVo();
         result.setInstanceId(instanceId);
-        if (points.isEmpty()) { result.setNote("暂无日级容量快照，无法进行容量预测"); return result; }
+        if (points.isEmpty()) { result.setPredictionStatus("insufficient"); result.setNote("暂无日级容量快照，无法进行容量预测"); return result; }
         TsCapacityGrowthDao.CapacityGrowthPoint first = points.getFirst();
         TsCapacityGrowthDao.CapacityGrowthPoint last = points.getLast();
         result.setCurrentBytes(last.currentBytes());
         int sampleDays = (int) Math.max(0, last.day().toEpochDay() - first.day().toEpochDay());
         result.setSampleDays(sampleDays);
-        if (sampleDays < 1) { result.setNote("容量样本不足 2 天，无法计算日均增长"); return result; }
+        if (sampleDays < 7) { result.setPredictionStatus("insufficient"); result.setNote("容量样本不足 7 天，暂无法形成可靠预测"); return result; }
         double dailyGrowth = (last.currentBytes() - first.currentBytes()) / (double) sampleDays;
         result.setDailyGrowthBytes(dailyGrowth);
+        result.setDailyGrowth30dBytes(dailyGrowth);
+        List<TsCapacityGrowthDao.CapacityGrowthPoint> recent7 = points.size() <= 8 ? points : points.subList(points.size() - 8, points.size());
+        TsCapacityGrowthDao.CapacityGrowthPoint first7 = recent7.getFirst();
+        TsCapacityGrowthDao.CapacityGrowthPoint last7 = recent7.getLast();
+        int days7 = (int) Math.max(1, last7.day().toEpochDay() - first7.day().toEpochDay());
+        result.setDailyGrowth7dBytes((last7.currentBytes() - first7.currentBytes()) / (double) days7);
         DbInstance instance = dbInstanceMapper.selectById(instanceId);
-        if (instance == null || instance.getHostId() == null) { result.setNote("实例未关联主机，无法读取数据盘剩余空间"); return result; }
+        if (instance == null || instance.getHostId() == null) { result.setPredictionStatus("insufficient"); result.setNote("实例未关联主机，无法读取数据盘剩余空间"); return result; }
         String json = textReader.latestFrom1m(instance.getHostId(), List.of("host.disk.mount_detail")).get("host.disk.mount_detail");
         DiskCapacity disk = largestDisk(json);
-        if (disk == null) { result.setNote("关联主机暂无数据盘挂载点明细，无法估算剩余天数"); return result; }
+        if (disk == null) { result.setPredictionStatus("insufficient"); result.setNote("关联主机暂无数据盘挂载点明细，无法估算剩余天数"); return result; }
         result.setDiskMount(disk.mount()); result.setDiskTotalBytes(disk.totalBytes()); result.setDiskAvailBytes(disk.availBytes()); result.setDiskUsagePercent(disk.usagePercent());
-        if (dailyGrowth <= 0) { result.setNote("最近容量未增长，暂无耗尽风险预测"); return result; }
+        if (dailyGrowth <= 0) { result.setPredictionStatus("stable"); result.setNote("最近容量未增长，暂无耗尽风险预测"); return result; }
         result.setEstimatedDaysRemaining((int) Math.min(3650, Math.ceil(disk.availBytes() / dailyGrowth)));
-        result.setNote("按最近 " + sampleDays + " 天日均增长线性估算");
+        result.setEstimatedExhaustionDate(java.time.LocalDate.now().plusDays(result.getEstimatedDaysRemaining()).toString());
+        result.setPredictionStatus(result.getEstimatedDaysRemaining() <= 90 ? "risk" : "stable");
+        result.setNote("按最近 " + sampleDays + " 天日均增长线性估算；异常波动仅作风险提示");
         return result;
     }
 

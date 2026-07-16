@@ -25,4 +25,10 @@ public class RetentionCleanupDao {
     public int deletePgOperationalEventsOlderThanDays(int retentionDays) {
         return mapper.deletePgOperationalEventsOlderThanDays(retentionDays);
     }
+    public int deleteMySqlPlanHistoryOlderThanDays(int retentionDays) {
+        return mapper.deleteMySqlPlanHistoryOlderThanDays(retentionDays);
+    }
+    public int deleteMySqlSecuritySnapshotsOlderThanDays(int retentionDays) {
+        return mapper.deleteMySqlSecuritySnapshotsOlderThanDays(retentionDays);
+    }
 }

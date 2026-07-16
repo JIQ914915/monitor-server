@@ -52,6 +52,12 @@ public class DbInstance {
     /** 最近一次 PG 能力探测时间。 */
     private OffsetDateTime pgCapabilitiesDetectedAt;
 
+    /** 最近一次 MySQL 能力探测快照，供巡检报告复用，避免报告批量实时探测目标库。 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<Map<String, Object>> mysqlCapabilities;
+
+    private OffsetDateTime mysqlCapabilitiesDetectedAt;
+
     /** 所在主机ID（外键 host.id，可空）；关联后主机 host.* 指标扇出写入该实例。 */
     private Long hostId;
 
