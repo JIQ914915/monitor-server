@@ -33,11 +33,18 @@ class PgDiagnosticMapperScriptTest {
         params.put("queryId", null);
         params.put("orderBy", "total_exec_time_ms DESC");
         params.put("limit", 100);
+        params.put("offset", 20);
 
         BoundSql sql = configuration.getMappedStatement(NAMESPACE + ".selectQueryAnalytics")
                 .getBoundSql(params);
         assertThat(sql.getSql()).contains("FROM pg_query_stat_history", "database_name=?",
-                "ORDER BY total_exec_time_ms DESC", "LIMIT ?")
+                "ORDER BY total_exec_time_ms DESC", "LIMIT ? OFFSET ?")
                 .doesNotContain("user_name=?");
+
+        BoundSql countSql = configuration.getMappedStatement(NAMESPACE + ".countQueryAnalytics")
+                .getBoundSql(params);
+        assertThat(countSql.getSql())
+                .contains("SELECT count(*)", "GROUP BY database_name,user_name,query_id", "database_name=?")
+                .doesNotContain("LIMIT", "OFFSET", "ORDER BY");
     }
 }

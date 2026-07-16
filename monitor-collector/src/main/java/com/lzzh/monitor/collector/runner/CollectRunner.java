@@ -35,6 +35,7 @@ import com.lzzh.monitor.collector.spi.model.LongConnPoint;
 import com.lzzh.monitor.collector.spi.model.MetricPoint;
 import com.lzzh.monitor.collector.spi.model.ObjectMetricPoint;
 import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
+import com.lzzh.monitor.collector.spi.model.PgOperationalEventPoint;
 import com.lzzh.monitor.collector.spi.model.SlowSqlSamplePoint;
 import com.lzzh.monitor.collector.spi.model.TextMetricPoint;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
@@ -50,6 +51,7 @@ import com.lzzh.monitor.dao.ts.TsLongConnWriter;
 import com.lzzh.monitor.dao.ts.TsMetricWriter;
 import com.lzzh.monitor.dao.ts.TsParamQueryDao;
 import com.lzzh.monitor.dao.ts.TsPgQueryStatWriter;
+import com.lzzh.monitor.dao.ts.TsPgOperationalEventWriter;
 import com.lzzh.monitor.dao.ts.TsSlowSqlSampleWriter;
 import com.lzzh.monitor.dao.ts.TsTextWriter;
 import com.lzzh.monitor.dao.ts.TsTopSqlWriter;
@@ -77,6 +79,8 @@ public class CollectRunner {
     private TsTopSqlWriter tsTopSqlWriter;
     @Resource
     private TsPgQueryStatWriter tsPgQueryStatWriter;
+    @Resource
+    private TsPgOperationalEventWriter tsPgOperationalEventWriter;
     @Resource
     private TsCapacityObjectWriter tsCapacityObjectWriter;
     @Resource
@@ -475,6 +479,7 @@ public class CollectRunner {
         writeObjects(instanceId, result.getObjectPoints());
         writeTopSql(instanceId, result.getTopSqlPoints());
         writePgQueryStats(instanceId, result.getPgQueryStatPoints());
+        writePgOperationalEvents(instanceId, result.getPgOperationalEventPoints());
         writeLongConns(instanceId, result.getLongConnPoints());
         writeSlowSqlSamples(instanceId, result.getSlowSqlSamplePoints());
     }
@@ -540,6 +545,15 @@ public class CollectRunner {
         tsLongConnWriter.batchWrite(instanceId, rows);
     }
 
+    private void writePgOperationalEvents(Long instanceId, List<PgOperationalEventPoint> points) {
+        if (points == null || points.isEmpty()) return;
+        var rows = points.stream().map(p -> new TsPgOperationalEventWriter.TsPgOperationalEvent(
+                p.source(), p.category(), p.eventType(), p.severity(), p.databaseName(), p.userName(),
+                p.objectName(), p.queryId(), p.sqlState(), p.message(), p.fingerprint(),
+                cn.hutool.json.JSONUtil.toJsonStr(p.payload()), p.sensitiveRedacted(), p.eventTimeMillis()
+        )).toList();
+        tsPgOperationalEventWriter.batchWrite(instanceId, rows);
+    }
     private void writePgQueryStats(Long instanceId, List<PgQueryStatPoint> points) {
         if (points == null || points.isEmpty()) return;
         List<TsPgQueryStatWriter.TsPgQueryStatPoint> rows = points.stream()

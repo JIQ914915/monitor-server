@@ -56,6 +56,8 @@ public class InstanceServiceImpl implements InstanceService {
     @Resource
     private InstanceDataCleanupMapper instanceDataCleanupMapper;
     @Resource
+    private SysDictItemMapper sysDictItemMapper;
+    @Resource
     private InstanceRuntimeMetadataService runtimeMetadataService;
 
     /** 主机查找表（hostId → Host），供列表/详情解析 hostName / hostOsType。 */
@@ -259,21 +261,19 @@ public class InstanceServiceImpl implements InstanceService {
         }
         runtimeMetadataService.refresh(request.getId());
     }
-
-    private static void normalizePgObjectScope(DbInstance instance) {
-        String scope = StringUtils.hasText(instance.getPgObjectScope())
-                ? instance.getPgObjectScope().trim().toLowerCase() : "monitoring";
-        if (!Set.of("monitoring", "selected", "all").contains(scope)) {
-            throw new BusinessException("非法的PG对象级采集范围：" + scope);
-        }
-        List<String> databases = instance.getPgObjectDatabases() == null ? List.of()
-                : instance.getPgObjectDatabases().stream()
-                    .filter(StringUtils::hasText).map(String::trim).distinct().limit(100).toList();
-        if ("selected".equals(scope) && databases.isEmpty()) {
-            throw new BusinessException("PG对象级采集范围为 selected 时至少选择一个数据库");
-        }
-        instance.setPgObjectScope(scope);
-        instance.setPgObjectDatabases(databases);
+    private void normalizePgObjectScope(DbInstance instance) {
+        String scope = normalizePgDictValue("pg_object_scope", instance.getPgObjectScope(), true, "PG 对象采集范围");
+        List<String> databases = instance.getPgObjectDatabases() == null ? List.of() : instance.getPgObjectDatabases().stream().filter(StringUtils::hasText).map(String::trim).distinct().limit(100).toList();
+        if ("selected".equals(scope) && databases.isEmpty()) throw new BusinessException("对象采集范围为指定数据库时，至少填写一个数据库名");
+        instance.setPgObjectScope(scope);instance.setPgObjectDatabases(databases);
+    }
+    private String normalizePgDictValue(String dictType, String value, boolean required, String field) {
+        List<SysDictItem> items = sysDictItemMapper.selectList(new LambdaQueryWrapper<SysDictItem>().eq(SysDictItem::getDictType, dictType).eq(SysDictItem::getStatus, "enabled").orderByAsc(SysDictItem::getSort));
+        if (items.isEmpty()) throw new BusinessException(field + "字典未配置，请联系管理员");
+        if (!StringUtils.hasText(value)) return required ? items.getFirst().getItemValue() : null;
+        String normalized = value.trim().toLowerCase();
+        if (items.stream().noneMatch(item -> normalized.equals(item.getItemValue()))) throw new BusinessException(field + "不合法或已停用：" + normalized);
+        return normalized;
     }
     @Override
     @Transactional

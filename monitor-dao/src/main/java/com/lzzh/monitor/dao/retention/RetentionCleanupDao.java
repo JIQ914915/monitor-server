@@ -22,4 +22,7 @@ public class RetentionCleanupDao {
     public int deleteOperLogsOlderThanDays(int retentionDays) {
         return mapper.deleteOperLogsOlderThanDays(retentionDays);
     }
+    public int deletePgOperationalEventsOlderThanDays(int retentionDays) {
+        return mapper.deletePgOperationalEventsOlderThanDays(retentionDays);
+    }
 }

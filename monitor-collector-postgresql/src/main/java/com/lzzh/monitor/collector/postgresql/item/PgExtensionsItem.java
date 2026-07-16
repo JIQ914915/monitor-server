@@ -18,7 +18,6 @@ import java.util.Set;
  * <ul>
  *   <li>{@code pg.ext.pg_stat_statements} —— 0=未启用；1=已加载未 CREATE EXTENSION（差最后一步）；
  *       2=已就绪（Top SQL / 指纹分析可用）</li>
- *   <li>{@code pg.ext.pgaudit} —— 同上口径（审计对接为后续阶段，先探测状态）</li>
  * </ul>
  * 状态区分"加载"与"创建"两步：preload 需改配置并重启，CREATE EXTENSION 在线即可，
  * 能力检测页据此给出差异化的安装引导。
@@ -28,7 +27,7 @@ public class PgExtensionsItem implements PgMetricItem {
 
     public static final String CODE = "pg_extensions";
 
-    private static final String[] WATCHED = {"pg_stat_statements", "pgaudit"};
+    private static final String[] WATCHED = {"pg_stat_statements"};
 
     @Override
     public String code() {

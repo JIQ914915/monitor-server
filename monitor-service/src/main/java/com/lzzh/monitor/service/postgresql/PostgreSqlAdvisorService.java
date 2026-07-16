@@ -4,12 +4,14 @@ import com.lzzh.monitor.api.response.CollectTargetVo;
 import com.lzzh.monitor.api.response.PgAdvisorVo;
 import com.lzzh.monitor.api.response.PgObjectAnalysisVo;
 import com.lzzh.monitor.common.exception.BusinessException;
+import com.lzzh.monitor.common.result.PageResult;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -143,76 +145,84 @@ public class PostgreSqlAdvisorService {
         return result;
     }
 
-    List<PgObjectAnalysisVo> objects(CollectTargetVo target) {
-        List<PgObjectAnalysisVo> result = new ArrayList<>();
-        long deadline = System.currentTimeMillis() + OBJECT_BUDGET_MS;
-        for (String database : databases(target).stream().limit(MAX_DATABASES).toList()) {
-            if (System.currentTimeMillis() >= deadline) break;
-            queryObjects(target, database, result);
+    PageResult<PgObjectAnalysisVo> objects(CollectTargetVo target,long requestedOffset,int limit) {
+        List<String> databaseNames=databases(target).stream().limit(MAX_DATABASES).toList();
+        List<DatabaseObjectCount> counts=new ArrayList<>();
+        long total=0;
+        for(String database:databaseNames){
+            long count=countObjects(target,database,database.equals(target.getDatabaseName()));
+            counts.add(new DatabaseObjectCount(database,count));total+=count;
         }
-        result.sort(Comparator.comparingLong(PgObjectAnalysisVo::getSizeBytes).reversed());
-        return result;
+        if(total==0||requestedOffset>=total)return PageResult.of(List.of(),total);
+        long offset=requestedOffset;List<PgObjectAnalysisVo> rows=new ArrayList<>();
+        for(DatabaseObjectCount entry:counts){
+            if(rows.size()>=limit)break;
+            if(offset>=entry.count()){offset-=entry.count();continue;}
+            int fetch=Math.min(limit-rows.size(),(int)Math.min(Integer.MAX_VALUE,entry.count()-offset));
+            rows.addAll(queryObjects(target,entry.database(),entry.database().equals(target.getDatabaseName()),offset,fetch));
+            offset=0;
+        }
+        return PageResult.of(rows,total);
     }
 
-    private void queryObjects(CollectTargetVo target, String database, List<PgObjectAnalysisVo> out) {
-        String sql = """
-                SELECT n.nspname,c.relname,
+    private long countObjects(CollectTargetVo target,String database,boolean includeTablespaces){
+        String sql="""
+                SELECT 1
+                  +(SELECT count(DISTINCT n.oid) FROM pg_namespace n JOIN pg_class c ON c.relnamespace=n.oid
+                     WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','m'))
+                  +(SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+                     WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','i','I','t','m'))
+                """+(includeTablespaces?"+(SELECT count(*) FROM pg_tablespace)":"");
+        try(Connection conn=open(target,database);Statement st=statement(conn);ResultSet rs=st.executeQuery(sql)){
+            return rs.next()?rs.getLong(1):0;
+        }catch(Exception e){throw error("对象容量计数失败（"+database+"）",e);}
+    }
+
+    private List<PgObjectAnalysisVo> queryObjects(CollectTargetVo target,String database,boolean includeTablespaces,long offset,int limit){
+        String union="""
+                SELECT NULL::text schema_name,'database'::text object_type,current_database()::text object_name,
+                       NULL::text parent_name,NULL::text tablespace,pg_database_size(current_database())::bigint size_bytes,
+                       NULL::bigint estimated_rows,NULL::bigint sequential_scans,NULL::double precision cache_hit_rate
+                UNION ALL
+                SELECT n.nspname,'schema',n.nspname,NULL,NULL,sum(pg_total_relation_size(c.oid))::bigint,NULL,NULL,NULL
+                  FROM pg_namespace n JOIN pg_class c ON c.relnamespace=n.oid
+                 WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','m')
+                 GROUP BY n.nspname
+                UNION ALL
+                SELECT n.nspname,
                        CASE c.relkind WHEN 'r' THEN 'table' WHEN 'p' THEN 'partitioned_table'
-                         WHEN 'i' THEN 'index' WHEN 'I' THEN 'partitioned_index'
-                         WHEN 't' THEN 'toast' WHEN 'm' THEN 'materialized_view'
-                         ELSE c.relkind::text END object_type,
-                       pn.nspname||'.'||pc.relname parent_name,
-                       COALESCE(ts.spcname,'pg_default') tablespace,
-                       pg_total_relation_size(c.oid) size_bytes,c.reltuples::bigint estimated_rows,
-                       sut.seq_scan,
+                         WHEN 'i' THEN 'index' WHEN 'I' THEN 'partitioned_index' WHEN 't' THEN 'toast'
+                         WHEN 'm' THEN 'materialized_view' ELSE c.relkind::text END,
+                       c.relname,pn.nspname||'.'||pc.relname,COALESCE(ts.spcname,'pg_default'),
+                       pg_total_relation_size(c.oid)::bigint,c.reltuples::bigint,sut.seq_scan::bigint,
                        CASE WHEN COALESCE(sio.heap_blks_hit,0)+COALESCE(sio.heap_blks_read,0)>0
-                         THEN 100.0*sio.heap_blks_hit/(sio.heap_blks_hit+sio.heap_blks_read) END cache_hit_rate
+                         THEN 100.0*sio.heap_blks_hit/(sio.heap_blks_hit+sio.heap_blks_read) END
                   FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-                  LEFT JOIN pg_inherits inh ON inh.inhrelid=c.oid
-                  LEFT JOIN pg_class pc ON pc.oid=inh.inhparent
-                  LEFT JOIN pg_namespace pn ON pn.oid=pc.relnamespace
-                  LEFT JOIN pg_tablespace ts ON ts.oid=c.reltablespace
-                  LEFT JOIN pg_stat_user_tables sut ON sut.relid=c.oid
-                  LEFT JOIN pg_statio_user_tables sio ON sio.relid=c.oid
-                 WHERE n.nspname NOT IN ('pg_catalog','information_schema')
-                   AND c.relkind IN ('r','p','i','I','t','m')
-                 ORDER BY size_bytes DESC LIMIT 1000
-                """;
-        try (Connection conn = open(target, database); Statement st = statement(conn)) {
-            addObject(out, database, null, "database", database, null, null, databaseSize(conn, database));
-            try (ResultSet schemas = st.executeQuery("""
-                    SELECT n.nspname,sum(pg_total_relation_size(c.oid)) size_bytes
-                      FROM pg_namespace n JOIN pg_class c ON c.relnamespace=n.oid
-                     WHERE n.nspname NOT IN ('pg_catalog','information_schema')
-                       AND c.relkind IN ('r','p','m')
-                     GROUP BY n.nspname ORDER BY size_bytes DESC
-                    """)) {
-                while (schemas.next()) addObject(out, database, schemas.getString(1), "schema",
-                        schemas.getString(1), null, null, schemas.getLong(2));
-            }
-            try (ResultSet rs = st.executeQuery(sql)) {
-                while (rs.next()) {
-                    PgObjectAnalysisVo vo = addObject(out, database, rs.getString("nspname"),
-                            rs.getString("object_type"), rs.getString("relname"),
-                            rs.getString("parent_name"), rs.getString("tablespace"), rs.getLong("size_bytes"));
-                    vo.setEstimatedRows(rs.getLong("estimated_rows"));
-                    long seq = rs.getLong("seq_scan"); if (!rs.wasNull()) vo.setSequentialScans(seq);
-                    double hit = rs.getDouble("cache_hit_rate"); if (!rs.wasNull()) vo.setCacheHitRate(hit);
-                }
-            }
-            if (database.equals(target.getDatabaseName())) {
-                try (ResultSet spaces = st.executeQuery("""
-                        SELECT spcname,pg_tablespace_size(oid) FROM pg_tablespace ORDER BY 2 DESC
-                        """)) {
-                    while (spaces.next()) addObject(out, database, null, "tablespace",
-                            spaces.getString(1), null, spaces.getString(1), spaces.getLong(2));
-                }
-            }
-        } catch (Exception e) {
-            addObject(out, database, null, "collection_error", root(e), null, null, 0);
-        }
+                  LEFT JOIN pg_inherits inh ON inh.inhrelid=c.oid LEFT JOIN pg_class pc ON pc.oid=inh.inhparent
+                  LEFT JOIN pg_namespace pn ON pn.oid=pc.relnamespace LEFT JOIN pg_tablespace ts ON ts.oid=c.reltablespace
+                  LEFT JOIN pg_stat_user_tables sut ON sut.relid=c.oid LEFT JOIN pg_statio_user_tables sio ON sio.relid=c.oid
+                 WHERE n.nspname NOT IN ('pg_catalog','information_schema') AND c.relkind IN ('r','p','i','I','t','m')
+                """+(includeTablespaces?"""
+                UNION ALL
+                SELECT NULL,'tablespace',spcname,NULL,spcname,pg_tablespace_size(oid)::bigint,NULL,NULL,NULL FROM pg_tablespace
+                """:"");
+        String sql="SELECT * FROM ("+union+") objects ORDER BY size_bytes DESC,object_type,schema_name NULLS FIRST,object_name LIMIT ? OFFSET ?";
+        List<PgObjectAnalysisVo> rows=new ArrayList<>();
+        try(Connection conn=open(target,database);PreparedStatement ps=conn.prepareStatement(sql)){
+            ps.setQueryTimeout(15);ps.setInt(1,limit);ps.setLong(2,offset);
+            try(ResultSet rs=ps.executeQuery()){while(rs.next()){
+                PgObjectAnalysisVo vo=new PgObjectAnalysisVo();vo.setDatabase(database);vo.setSchema(rs.getString("schema_name"));
+                vo.setObjectType(rs.getString("object_type"));vo.setObjectName(rs.getString("object_name"));
+                vo.setParentName(rs.getString("parent_name"));vo.setTablespace(rs.getString("tablespace"));vo.setSizeBytes(rs.getLong("size_bytes"));
+                long estimated=rs.getLong("estimated_rows");if(!rs.wasNull())vo.setEstimatedRows(estimated);
+                long scans=rs.getLong("sequential_scans");if(!rs.wasNull())vo.setSequentialScans(scans);
+                double hit=rs.getDouble("cache_hit_rate");if(!rs.wasNull())vo.setCacheHitRate(hit);rows.add(vo);
+            }}
+            return rows;
+        }catch(Exception e){throw error("对象容量分页查询失败（"+database+"）",e);}
     }
 
+    private record DatabaseObjectCount(String database,long count){}
     private List<String> databases(CollectTargetVo target) {
         String scope = StringUtils.hasText(target.getPgObjectScope()) ? target.getPgObjectScope() : "monitoring";
         if ("selected".equals(scope)) {

@@ -45,6 +45,7 @@ import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.instance.InstanceRuntimeMetadataService;
 import com.lzzh.monitor.service.metric.MetricQueryService;
+import com.lzzh.monitor.service.postgresql.PostgreSqlPhase3Service;
 import com.lzzh.monitor.service.support.Pages;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
@@ -148,6 +149,8 @@ public class ReportServiceImpl implements ReportService {
     private ReportMailService reportMailService;
     @Resource
     private InstanceRuntimeMetadataService runtimeMetadataService;
+    @Resource
+    private PostgreSqlPhase3Service postgreSqlPhase3Service;
 
     /** 解析实例数据库类型；缺失或未支持类型直接失败，禁止静默按 MySQL 处理。 */
     private DbType resolveDbType(DbInstance ins) {
@@ -569,7 +572,71 @@ public class ReportServiceImpl implements ReportService {
                 col("result", "最近结果"), col("rate", "24h 成功率")
         ), collectRows, "暂无采集记录"));
 
-        // 9. 优化建议（按巡检发现推导）
+        // 9. PostgreSQL 原生运维风险：复用页面健康结论，确保巡检报告可追溯到同一证据口径。
+        List<Map<String, Object>> pgRiskRows = new ArrayList<>();
+        int pgOperationalRisk = 0;
+        List<Map<String, Object>> pgDrillRows = new ArrayList<>();
+        int pgRestoreRisk = 0;
+        OffsetDateTime drillOverdueAt = OffsetDateTime.now().minusDays(90);
+        for (DbInstance ins : instances) {
+            if (!isPostgres(ins)) continue;
+            try {
+                var health = postgreSqlPhase3Service.health(ins.getId());
+                if (health.getRisks().isEmpty()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("instance", ins.getName());
+                    row.put("severity", dictLabel("pg_operation_severity", health.getSeverity()));
+                    row.put("conclusion", health.getConclusion());
+                    row.put("impact", "-");
+                    row.put("action", health.getLastSeen() == null ? "检查采集任务和账号权限" : "保持监控");
+                    pgRiskRows.add(row);
+                } else {
+                    pgOperationalRisk += health.getRisks().size();
+                    for (var risk : health.getRisks()) {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("instance", ins.getName());
+                        row.put("severity", dictLabel("pg_operation_severity", risk.getSeverity()));
+                        row.put("conclusion", risk.getConclusion());
+                        row.put("impact", risk.getImpact());
+                        row.put("action", risk.getAction());
+                        pgRiskRows.add(row);
+                    }
+                }
+                var drills = postgreSqlPhase3Service.latestRestoreDrills(ins.getId(), 1);
+                var latest = drills.isEmpty() ? null : drills.get(0);
+                boolean overdue = latest == null || latest.getStartedAt() == null || latest.getStartedAt().isBefore(drillOverdueAt);
+                boolean passed = latest != null && "passed".equals(latest.getValidationResult());
+                if (overdue || !passed) pgRestoreRisk++;
+                Map<String, Object> drillRow = new LinkedHashMap<>();
+                drillRow.put("instance", ins.getName());
+                drillRow.put("lastDrill", latest == null || latest.getStartedAt() == null ? "从未登记" : fmt(latest.getStartedAt()));
+                drillRow.put("status", latest == null ? "-" : dictLabel("pg_restore_drill_status", latest.getStatus()));
+                drillRow.put("validation", latest == null ? "-" : dictLabel("pg_restore_validation_result", latest.getValidationResult()));
+                drillRow.put("conclusion", overdue ? "超过 90 天未完成恢复演练" : !passed ? "最近演练尚未验证通过" : "最近恢复演练已验证通过");
+                pgDrillRows.add(drillRow);
+            } catch (Exception e) {
+                log.warn("生成 PostgreSQL 巡检段失败 instanceId={}: {}", ins.getId(), e.getMessage());
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("instance", ins.getName());
+                row.put("severity", "数据不足");
+                row.put("conclusion", "原生运维数据暂不可用");
+                row.put("impact", "当前无法判断复制、WAL 和运维任务风险");
+                row.put("action", "检查采集任务、版本支持和账号只读权限");
+                pgRiskRows.add(row);
+            }
+        }
+        if (!pgRiskRows.isEmpty()) {
+            sections.add(tableSection("九、PostgreSQL 原生运维风险（近 24 小时）", List.of(
+                    col("instance", "实例"), col("severity", "状态"), col("conclusion", "结论"),
+                    col("impact", "影响"), col("action", "建议动作")
+            ), pgRiskRows, "暂无 PostgreSQL 运维风险数据"));
+            sections.add(tableSection("十、PostgreSQL 恢复演练", List.of(
+                    col("instance", "实例"), col("lastDrill", "最近演练"), col("status", "演练状态"),
+                    col("validation", "验证结果"), col("conclusion", "结论")
+            ), pgDrillRows, "尚未登记恢复演练；WAL 归档正常不等于可恢复"));
+        }
+
+        // 11. 优化建议（按巡检发现推导）
         List<String> tips = new ArrayList<>();
         if (critical > 0) tips.add("存在 " + critical + " 个严重状态实例，请优先进入告警事件中心处理未恢复事件。");
         if (warning > 0) tips.add(warning + " 个实例健康分低于 75，建议进入实例的性能分析页排查扣分维度。");
@@ -582,8 +649,10 @@ public class ReportServiceImpl implements ReportService {
         }
         if (replRisk > 0) tips.add(replRisk + " 个从库存在复制线程异常或延迟偏高，请优先检查复制链路（线程状态、位点差、网络与 I/O）。");
         if (collectRisk > 0) tips.add(collectRisk + " 个采集任务最近失败或 24h 成功率低于 95%，请在「采集任务管理」检查账号权限与网络连通性。");
+        if (pgOperationalRisk > 0) tips.add("PostgreSQL 原生运维检查发现 " + pgOperationalRisk + " 类风险，请按报告中的影响和建议动作逐项核实。");
+        if (pgRestoreRisk > 0) tips.add(pgRestoreRisk + " 个 PostgreSQL 实例未在 90 天内完成并通过恢复演练；WAL 归档正常不等于可恢复。");
         if (tips.isEmpty()) tips.add("本次巡检未发现明显风险，请保持当前监控与告警策略。");
-        sections.add(listSection("九、优化建议", tips));
+        sections.add(listSection(pgRiskRows.isEmpty() ? "九、优化建议" : "十一、优化建议", tips));
         return sections;
     }
 

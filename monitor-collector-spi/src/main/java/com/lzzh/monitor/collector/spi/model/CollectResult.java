@@ -20,6 +20,8 @@ public class CollectResult {
     private List<TopSqlPoint> topSqlPoints = new ArrayList<>();
     /** PostgreSQL Query Analytics 周期增量。 */
     private List<PgQueryStatPoint> pgQueryStatPoints = new ArrayList<>();
+    /** PostgreSQL 第三期标准化运维事件。 */
+    private List<PgOperationalEventPoint> pgOperationalEventPoints = new ArrayList<>();
     /** 长连接明细点（processlist TIME >= 阈值的连接快照）。 */
     private List<LongConnPoint> longConnPoints = new ArrayList<>();
     /** 慢 SQL 真实执行样本点（events_statements_history 耗时超阈值语句）。 */

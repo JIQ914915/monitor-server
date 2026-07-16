@@ -1,5 +1,6 @@
 package com.lzzh.monitor.service.postgresql;
 
+import com.lzzh.monitor.api.request.PgPageRequest;
 import com.lzzh.monitor.api.request.PgPlanCaptureRequest;
 import com.lzzh.monitor.api.request.PgQueryAnalyticsRequest;
 import com.lzzh.monitor.api.response.PgAdvisorVo;
@@ -8,9 +9,11 @@ import com.lzzh.monitor.api.response.PgPlanHistoryVo;
 import com.lzzh.monitor.api.response.PgQueryAnalyticsVo;
 import com.lzzh.monitor.api.response.PgSqlRegressionVo;
 import com.lzzh.monitor.common.exception.BusinessException;
+import com.lzzh.monitor.common.result.PageResult;
 import com.lzzh.monitor.dao.mapper.PgDiagnosticMapper;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.instance.InstanceService;
+import com.lzzh.monitor.service.support.Pages;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -38,24 +41,31 @@ public class PostgreSqlPhase2ServiceImpl implements PostgreSqlPhase2Service {
     @Resource private PostgreSqlAdvisorService advisorService;
 
     @Override
-    public List<PgQueryAnalyticsVo> queryAnalytics(PgQueryAnalyticsRequest request) {
+    public PageResult<PgQueryAnalyticsVo> queryAnalytics(PgQueryAnalyticsRequest request) {
         requireInstance(request.getInstanceId());
         OffsetDateTime to = request.getTo() == null ? OffsetDateTime.now() : request.getTo();
         OffsetDateTime from = request.getFrom() == null ? to.minusDays(7) : request.getFrom();
+        if(from.isAfter(to))throw new BusinessException("开始时间不能晚于结束时间");
         String column = SORT_COLUMNS.getOrDefault(request.getSortBy(), "total_exec_time_ms");
         String direction = "asc".equalsIgnoreCase(request.getSortDirection()) ? "ASC" : "DESC";
-        int limit = Math.min(500, Math.max(1, request.getLimit() == null ? 100 : request.getLimit()));
-        return mapper.selectQueryAnalytics(request.getInstanceId(), timestamp(from), timestamp(to),
-                        trim(request.getDatabase()), trim(request.getUser()), trim(request.getQueryId()),
-                        column + " " + direction, limit)
-                .stream().map(this::toAnalytics).toList();
+        Pages.PageWindow page=Pages.window(request);
+        String database=trim(request.getDatabase()),user=trim(request.getUser()),queryId=trim(request.getQueryId());
+        Timestamp fromTs=timestamp(from),toTs=timestamp(to);
+        long total=mapper.countQueryAnalytics(request.getInstanceId(),fromTs,toTs,database,user,queryId);
+        if(total==0)return PageResult.of(List.of(),0);
+        List<PgQueryAnalyticsVo> rows=mapper.selectQueryAnalytics(request.getInstanceId(),fromTs,toTs,database,user,queryId,
+                        column + " " + direction,page.pageSize(),page.offset()).stream().map(this::toAnalytics).toList();
+        return PageResult.of(rows,total);
     }
 
     @Override
-    public List<PgSqlRegressionVo> regressions(Long instanceId) {
-        requireInstance(instanceId);
-        refreshRegressions(instanceId);
-        return mapper.selectRegressionEvents(instanceId, 200).stream().map(this::toRegression).toList();
+    public PageResult<PgSqlRegressionVo> regressions(PgPageRequest request) {
+        requireInstance(request.getInstanceId());
+        refreshRegressions(request.getInstanceId());
+        Pages.PageWindow page=Pages.window(request);
+        long total=mapper.countRegressionEvents(request.getInstanceId());
+        if(total==0)return PageResult.of(List.of(),0);
+        return PageResult.of(mapper.selectRegressionEvents(request.getInstanceId(),page.pageSize(),page.offset()).stream().map(this::toRegression).toList(),total);
     }
 
     private void refreshRegressions(Long instanceId) {
@@ -146,8 +156,9 @@ public class PostgreSqlPhase2ServiceImpl implements PostgreSqlPhase2Service {
     }
 
     @Override
-    public List<PgObjectAnalysisVo> objects(Long instanceId) {
-        return advisorService.objects(requireInstance(instanceId));
+    public PageResult<PgObjectAnalysisVo> objects(PgPageRequest request) {
+        Pages.PageWindow page=Pages.window(request);
+        return advisorService.objects(requireInstance(request.getInstanceId()),page.offset(),page.pageSize());
     }
 
     private com.lzzh.monitor.api.response.CollectTargetVo requireInstance(Long instanceId) {

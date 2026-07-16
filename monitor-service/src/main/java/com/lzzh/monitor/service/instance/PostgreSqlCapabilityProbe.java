@@ -46,10 +46,8 @@ public class PostgreSqlCapabilityProbe {
             result.add(view(conn, "pg_stat_progress_create_index", "索引创建进度", true, null));
             result.add(view(conn, "pg_stat_progress_copy", "COPY 进度", true, null));
             result.add(extension(conn, "pg_stat_statements", "Top SQL 指纹分析", true));
-            result.add(extension(conn, "pgaudit", "pgaudit 审计", false));
             result.add(extension(conn, "pgstattuple", "精确膨胀检查", false));
             result.add(extension(conn, "amcheck", "索引一致性检查", false));
-            result.add(library(conn, "auto_explain", "auto_explain 慢 SQL 计划"));
             result.add(setting(conn, "track_io_timing", "I/O 耗时统计"));
             result.add(setting(conn, "track_wal_io_timing", "WAL I/O 耗时统计"));
             result.add(setting(conn, "compute_query_id", "Query ID 计算"));

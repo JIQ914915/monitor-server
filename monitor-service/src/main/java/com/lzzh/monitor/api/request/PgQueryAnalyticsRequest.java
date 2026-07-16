@@ -1,12 +1,15 @@
 package com.lzzh.monitor.api.request;
 
+import com.lzzh.monitor.common.result.PageParam;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.OffsetDateTime;
 
 @Data
-public class PgQueryAnalyticsRequest {
+@EqualsAndHashCode(callSuper = true)
+public class PgQueryAnalyticsRequest extends PageParam {
     @NotNull private Long instanceId;
     private String database;
     private String user;
@@ -15,5 +18,4 @@ public class PgQueryAnalyticsRequest {
     private OffsetDateTime to;
     private String sortBy;
     private String sortDirection;
-    private Integer limit;
 }

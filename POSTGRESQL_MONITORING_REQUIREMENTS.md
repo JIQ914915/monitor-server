@@ -18,7 +18,7 @@
 2. 锁、慢 SQL、Vacuum、复制等异常能够告警，但缺少完整现场和根因链路。
 3. SQL 分析以排行榜和单次 EXPLAIN 为主，缺少历史对比、性能回退和执行计划变化分析。
 4. Vacuum、索引、安全等能力以事实展示为主，尚未形成工作负载感知的顾问能力。
-5. 日志、审计、逻辑复制、HA、备份恢复等生产运维能力尚不完整。
+5. 日志、逻辑复制、WAL 归档和恢复演练等生产运维能力尚不完整。
 6. 对大规模实例的统一配置、自动发现、容量预测和异常关联能力仍需建设。
 
 因此，下一阶段建设目标是让平台能够回答以下问题：
@@ -39,7 +39,7 @@
 - SQL 统计：`pg_stat_statements` 的规划时间、执行时间、I/O、WAL、JIT、统计重置和淘汰信息。
 - 进度视图：VACUUM、ANALYZE、CREATE INDEX、REINDEX、CLUSTER、COPY、BASE_BACKUP。
 - 复制监控：物理复制、WAL receiver、恢复冲突、逻辑订阅和订阅冲突。
-- 辅助扩展：`pgstattuple`、`amcheck`、`auto_explain`、`pgaudit`。
+- 辅助扩展：`pgstattuple`、`amcheck`。
 - PostgreSQL 版本支持策略和安全版本信息。
 
 ### 2.2 对标产品
@@ -81,8 +81,7 @@
 - 数据库级和对象级采集主要面向实例配置的连接库，没有形成实例内多数据库发现和覆盖状态。
 - Top SQL 为小时级差值，未充分使用 planning、I/O timing、WAL、JIT、波动等字段。
 - 表膨胀主要根据统计估算，尚未形成按表 Vacuum 效率和参数建议。
-- pgaudit 仅检测扩展状态，未接入审计数据。
-- 尚未系统接入 PostgreSQL 日志、Patroni、pgBackRest/Barman 和逻辑复制。
+- 尚未系统接入 PostgreSQL 逻辑复制。
 
 ## 4. 建设目标
 
@@ -92,7 +91,7 @@
 2. 对锁、慢 SQL、Vacuum、复制等高频故障保留可复盘的事件现场。
 3. 将 SQL 性能分析从“Top 排名”升级为“性能变化、根因和计划回退分析”。
 4. 建立 Vacuum、索引、配置和安全顾问能力，输出证据、建议和风险说明。
-5. 覆盖日志、审计、HA、备份恢复等生产运维场景。
+5. 覆盖日志、复制、WAL 归档和恢复演练等生产运维场景。
 6. 支持大规模实例的统一策略、容量预测、异常关联和合规治理。
 
 ### 4.2 成功标准
@@ -107,7 +106,7 @@
 ### 4.3 非目标
 
 - 不在本轮建设数据库代理、连接池或 SQL 网关。
-- 不直接替代 Patroni、pgBackRest、Barman 等专业运维组件。
+- 不管理外部 HA 和备份组件，不保存备份文件。
 - 不默认自动终止会话、自动改参数或自动创建/删除索引。
 - 不执行未经人工确认的 `EXPLAIN ANALYZE`、VACUUM FULL、REINDEX 或主从切换。
 - 不为了统一多数据库实现而削弱现有 MySQL 功能。
@@ -130,9 +129,9 @@
 ### 5.3 低侵入和最小权限
 
 - 默认只读采集，使用 `pg_monitor` 等官方角色满足大部分监控场景。
-- 对 `pg_stat_statements`、`pgstattuple`、`amcheck`、`pgaudit`、`auto_explain` 分别声明扩展和权限要求。
+- 对 `pg_stat_statements`、`pgstattuple`、`amcheck` 分别声明扩展和权限要求。
 - 对高开销采集设置超时、行数限制、频率和能力开关。
-- SQL 文本、参数、日志和审计数据必须支持脱敏和访问控制。
+- SQL 文本、参数、日志和运维事件必须支持脱敏和访问控制。
 
 ### 5.4 建议必须可解释
 
@@ -183,7 +182,7 @@
 
 - `pg_stat_statements` 是否加载、创建、可读。
 - `pg_stat_io`、`pg_stat_checkpointer`、各类 progress view 是否存在。
-- `pgaudit`、`pgstattuple`、`amcheck`、`auto_explain` 是否可用。
+- `pgstattuple`、`amcheck` 是否可用。
 - 当前账号是否具有查看活动、SQL 文本、复制、角色等权限。
 - `track_io_timing`、`track_wal_io_timing`、`compute_query_id` 等关键开关状态。
 
@@ -254,7 +253,7 @@
 
 - 自动终止根阻塞会话。
 - 自动修改数据库参数。
-- 完整日志采集和 Patroni 集群管理。
+- 文件型 PostgreSQL 日志采集。
 - 全量对象级跨库深度分析。
 
 ## 8. 第二期：SQL、Vacuum 与索引深度诊断
@@ -305,7 +304,7 @@
 - 对同一 query id 的计划进行版本化，识别计划哈希变化。
 - 展示节点树、成本、估算行数、扫描方式、Join 方式、过滤条件和索引。
 - 对用户主动提交的 `EXPLAIN ANALYZE` 保留独立高风险权限和明确执行风险；首版可不开放。
-- 可选接入 `auto_explain` JSON 日志，为无法手动复现的慢 SQL 保存真实计划。
+- 对无法安全复现的慢 SQL 不自动执行或解析外部计划，仅保留手工安全 EXPLAIN。
 
 #### PG-P2-04 Vacuum Advisor
 
@@ -368,65 +367,41 @@
 - 默认执行生产 SQL 的 EXPLAIN ANALYZE。
 - 基于自然语言自动改写 SQL 并直接上线。
 
-## 9. 第三期：日志、复制、HA 与备份运维
+## 9. 第三期：复制、归档恢复与运维任务
 
 ### 9.1 阶段目标
 
-- 覆盖 PostgreSQL 生产运维中除指标外的主要证据来源。
-- 形成日志、复制、HA、备份和恢复的统一视图。
-- 建立故障事件和运维事件的时间线。
+- 覆盖 PostgreSQL 复制、WAL 归档和任务进度等系统视图可直接获取的运维证据。
+- 形成不依赖第三方组件的统一运维视图和事件时间线。
+- 保留人工恢复演练记录，明确区分“归档正常”和“已验证可恢复”。
 
 ### 9.2 功能范围
 
-#### PG-P3-01 PostgreSQL 日志中心
-
-- 支持 CSV log 和 JSON log；文本日志作为兼容模式。
-- 解析时间、级别、SQLSTATE、用户、数据库、PID、会话、事务、query id、消息和 detail/hint/context。
-- 支持 ERROR、FATAL、PANIC、连接失败、锁等待、锁超时、statement timeout、checkpoint、autovacuum、崩溃恢复分类。
-- 支持日志检索、聚合趋势、错误指纹和告警。
-- SQL、参数和敏感对象字段支持脱敏。
-- 接入 `auto_explain` 时解析 JSON Plan 并关联 Query Analytics。
-
-#### PG-P3-02 pgaudit 审计接入
-
-- 解析 READ、WRITE、DDL、ROLE、FUNCTION、MISC 等审计类别。
-- 支持按用户、数据库、对象、操作类型和结果检索。
-- 建立敏感对象访问、角色变更和高风险 DDL 告警。
-- 审计查看权限与普通监控权限分离。
-
-#### PG-P3-03 逻辑复制
+#### PG-P3-01 逻辑复制
 
 - publication、subscription、subscription worker 和表同步状态。
 - received/latest-end LSN、apply 延迟、同步阶段和 worker 状态。
-- `pg_stat_subscription_stats` 冲突类型和累计数量。
+- pg_stat_subscription_stats 冲突类型和累计数量。
 - 逻辑复制槽 retained WAL、inactive 状态和 catalog xmin 风险。
 - 订阅停止、worker 缺失、冲突增长和槽积压告警。
 
-#### PG-P3-04 物理复制增强
+#### PG-P3-02 物理复制增强
 
 - WAL receiver、恢复 LSN、接收/回放延迟、Timeline。
-- `pg_stat_database_conflicts` 中的 snapshot、lock、buffer pin、deadlock 等冲突。
-- `pg_stat_recovery_prefetch` 效率。
+- pg_stat_database_conflicts 中的 snapshot、lock、buffer pin、deadlock 等冲突。
+- pg_stat_recovery_prefetch 效率。
 - 同步复制状态、候选同步节点和 quorum 配置展示。
 - 主从角色变化、Timeline 变化和复制中断事件。
 
-#### PG-P3-05 Patroni/HA 集群
+#### PG-P3-03 WAL 归档与恢复演练
 
-- 通过 Patroni REST API 获取集群成员、Leader、角色、状态、Timeline、lag 和 pending restart。
-- 展示 PostgreSQL 复制拓扑与 Patroni 成员的一致性。
-- 记录 failover、switchover、成员重启和 DCS 不可用事件。
-- 首版只监控和记录，不直接发起切换。
+- 基于 pg_stat_archiver 展示归档成功/失败次数、最近成功/失败 WAL 和发生时间。
+- 对归档失败增长、长时间无成功归档等风险给出状态化结论。
+- 支持登记恢复演练，记录备份标识、目标时间、恢复耗时、校验结果和负责人。
+- 未经过恢复验证的记录必须标记为“未验证”。
+- 平台不读取、保存或管理第三方备份仓库和备份文件。
 
-#### PG-P3-06 备份恢复监控
-
-- 优先对接 pgBackRest 和 Barman，pg_basebackup 作为基础兼容。
-- 展示全量/增量/差异备份历史、状态、大小、持续时间和仓库。
-- 计算最近成功备份年龄、可恢复时间范围和 WAL 归档连续性。
-- 备份失败、过期、WAL 缺口、仓库容量不足告警。
-- 支持登记恢复演练，记录目标时间、恢复耗时、校验结果和负责人。
-- 未经过恢复验证的备份必须标记为“未验证”。
-
-#### PG-P3-07 运维任务进度中心
+#### PG-P3-04 运维任务进度中心
 
 - VACUUM、ANALYZE、CREATE INDEX、REINDEX、CLUSTER、COPY 和 BASE_BACKUP 进度。
 - 展示阶段、完成比例、已处理对象、持续时间和等待 PID。
@@ -434,28 +409,26 @@
 
 ### 9.3 页面交付
 
-- PostgreSQL 日志和审计页面。
+- PostgreSQL 原生运维事件时间线。
 - 复制拓扑与逻辑复制页面。
-- Patroni 集群页面。
-- 备份恢复页面。
+- WAL 归档与恢复演练页面。
 - 运维任务进度中心。
 - 统一事件时间线。
 
 ### 9.4 验收标准
 
-- 能从日志中检索指定 SQLSTATE，并定位对应数据库、用户和 query id。
 - 逻辑订阅停止或冲突增长时产生告警并展示订阅、worker 和冲突类型。
-- Patroni Leader 变化后能记录新旧 Leader、Timeline 和发生时间。
-- 备份失败、超过目标备份年龄或 WAL 归档出现缺口时能够告警。
-- 恢复演练结果可以追溯，且不会把“备份成功”错误等同于“可恢复”。
+- WAL 归档失败增长或长期无成功归档时能够提示风险。
+- 恢复演练结果可以追溯，且不会把“归档正常”错误等同于“可恢复”。
 - 长时间 CREATE INDEX 等任务能展示阶段并关联其等待会话。
 
-### 9.5 本期不包含
+### 9.5 明确移除
 
-- 自动执行 Patroni switchover/failover。
-- 替代 pgBackRest/Barman 保存备份文件。
-- 修改 PostgreSQL 日志文件内容。
-- 自动恢复生产数据库。
+- 不接入 PostgreSQL 文件日志、pgaudit 审计日志或其他文件型日志源。
+- 不接入 auto_explain 自动日志计划。
+- 不接入 Patroni REST API 或 HA 集群管理。
+- 不接入 pgBackRest、Barman 等外部备份状态文件或仓库。
+- 不自动恢复生产数据库。
 
 ## 10. 第四期：平台化与智能治理
 
@@ -495,14 +468,14 @@
 - PostgreSQL 指标。
 - 主机 CPU、内存、磁盘和网络。
 - SQL 指纹和执行计划。
-- PostgreSQL 日志与审计。
+- PostgreSQL 原生运维事件。
 - 告警、发布、配置变更、主从切换和备份事件。
 
 输出事件时间线和候选根因，不将时间相关性直接表述为确定因果。
 
 #### PG-P4-05 容量预测
 
-- 数据库、表空间、表、索引、TOAST、WAL 和备份仓库增长预测。
+- 数据库、表空间、表、索引、TOAST 和 WAL 增长预测。
 - 输出预计达到阈值的时间、置信区间和主要增长对象。
 - 数据不足或增长不稳定时不输出伪精确日期。
 - 支持业务增长情景模拟和扩容建议。
@@ -512,7 +485,7 @@
 - PostgreSQL 版本 EOL、低于安全小版本和已知 CVE 风险。
 - 角色、继承关系、超级用户、登录权限、密码有效期和危险授权。
 - PUBLIC Schema/对象权限、默认权限、RLS、危险扩展和配置。
-- SSL 使用情况、审计覆盖率和安全配置漂移。
+- SSL 使用情况、最小权限覆盖率和安全配置漂移。
 - 支持生成检查报告和整改跟踪，不自动修改权限。
 
 #### PG-P4-07 云数据库适配
@@ -544,7 +517,7 @@
 
 - 实时会话只保留短期采样，事件快照按告警保留策略保存。
 - Query Analytics 保存聚合结果，原始 SQL 文本按权限和保留期控制。
-- 日志和审计分别设置保留策略；审计数据不得沿用普通日志的短保留期。
+- 日志和运维事件分别设置保留策略，关键事件应满足追溯周期要求。
 - 执行计划按 query id 和计划哈希去重。
 - 容量、版本、配置和拓扑数据需要保留长期变化历史。
 
@@ -557,7 +530,7 @@
 
 ### 11.3 敏感数据
 
-- SQL 文本、绑定参数、日志、客户端地址和审计记录属于受限数据。
+- SQL 文本、绑定参数、日志、客户端地址和运维事件属于受限数据。
 - 不采集和展示密码、Token、Cookie、连接串密码或认证头。
 - 支持 SQL 常量脱敏、字段截断、按角色控制原文查看和导出。
 - 操作日志不得记录目标实例密码或完整敏感 SQL 参数。
@@ -570,13 +543,13 @@
 - 查看实时会话。
 - 查看 SQL 原文。
 - 查看日志。
-- 查看审计。
+- 查看运维事件。
 - 查看安全报告。
 - 执行 cancel backend。
 - 执行 terminate backend。
 - 执行诊断 SQL。
 - 管理 Profile 和自定义探针。
-- 管理备份/HA 集成。
+- 管理恢复演练和监控 Profile。
 - 执行高风险运维动作。
 
 所有接口继续应用现有实例数据范围，用户只能查看和操作授权实例。
@@ -592,8 +565,7 @@
 
 ### 13.2 可用性
 
-- 外部组件不可用时只降级对应能力，不影响基础监控。
-- Patroni、备份仓库、日志源和云 API 的错误分别记录。
+- 云 API 错误与目标库采集错误分别记录。
 - 告警现场抓取使用有界队列，不能阻塞告警评估。
 
 ### 13.3 可测试性
@@ -616,7 +588,7 @@
 | --- | --- | --- |
 | 目标库压力 | 对象、SQL、日志和扩展查询可能产生额外开销 | 分级频率、超时、行数限制、低峰执行、能力开关 |
 | 权限不足 | 云数据库和普通监控账号无法查看全部系统信息 | 能力矩阵、最小授权文档、缺失原因明确展示 |
-| SQL 泄露 | Query Analytics、日志和审计包含业务 SQL | 脱敏、RBAC、导出控制、保留期 |
+| SQL 泄露 | Query Analytics 和日志包含业务 SQL | 脱敏、RBAC、导出控制、保留期 |
 | 错误建议 | 仅靠统计数据可能误判索引或参数 | 展示证据和置信度，仅输出候选建议，人工确认 |
 | 高风险操作 | terminate、REINDEX、切换可能影响业务 | 独立权限、二次确认、审批、审计、验证 |
 | 多版本差异 | 系统视图和字段随 PG 版本变化 | Adapter + capability probe + 版本集成测试 |
@@ -644,7 +616,6 @@
 - Cumulative Statistics System：https://www.postgresql.org/docs/current/monitoring-stats.html
 - Progress Reporting：https://www.postgresql.org/docs/current/progress-reporting.html
 - pg_stat_statements：https://www.postgresql.org/docs/current/pgstatstatements.html
-- auto_explain：https://www.postgresql.org/docs/current/auto-explain.html
 - pgstattuple：https://www.postgresql.org/docs/current/pgstattuple.html
 - amcheck：https://www.postgresql.org/docs/current/amcheck.html
 - Logical Replication Monitoring：https://www.postgresql.org/docs/current/logical-replication-monitoring.html

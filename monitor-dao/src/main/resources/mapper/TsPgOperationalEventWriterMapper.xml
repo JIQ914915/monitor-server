@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.TsPgOperationalEventWriterMapper">
+  <insert id="insertBatch">
+    INSERT INTO pg_operational_event
+      (instance_id,source,category,event_type,severity,database_name,user_name,object_name,
+       query_id,sql_state,message,fingerprint,payload,sensitive_redacted,event_time)
+    VALUES
+    <foreach collection="items" item="it" separator=",">
+      (#{instanceId},#{it.source},#{it.category},#{it.eventType},#{it.severity},
+       #{it.databaseName,jdbcType=VARCHAR},#{it.userName,jdbcType=VARCHAR},#{it.objectName,jdbcType=VARCHAR},
+       #{it.queryId,jdbcType=VARCHAR},#{it.sqlState,jdbcType=VARCHAR},#{it.message,jdbcType=VARCHAR},
+       #{it.fingerprint,jdbcType=VARCHAR},CAST(#{it.payloadJson} AS jsonb),#{it.sensitiveRedacted},
+       to_timestamp(#{it.eventTimeMillis}/1000.0))
+    </foreach>
+  </insert>
+</mapper>

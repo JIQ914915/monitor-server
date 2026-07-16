@@ -28,5 +28,7 @@
         DELETE FROM metric_capacity_object WHERE instance_id = #{instanceId};
         DELETE FROM metric_long_conn WHERE instance_id = #{instanceId};
         DELETE FROM metric_slow_sql_sample WHERE instance_id = #{instanceId};
+        DELETE FROM pg_operational_event WHERE instance_id = #{instanceId};
+        DELETE FROM pg_restore_drill WHERE instance_id = #{instanceId};
     </delete>
 </mapper>

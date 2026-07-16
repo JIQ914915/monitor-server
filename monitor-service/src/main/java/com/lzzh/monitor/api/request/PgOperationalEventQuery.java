@@ -1,20 +1,20 @@
 package com.lzzh.monitor.api.request;
 
 import com.lzzh.monitor.common.result.PageParam;
-import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import java.time.OffsetDateTime;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "PostgreSQL 实时会话分页查询")
-public class PgSessionQueryRequest extends PageParam {
+public class PgOperationalEventQuery extends PageParam {
     @NotNull private Long instanceId;
+    private String source;
+    private String category;
+    private String sqlState;
     private String database;
     private String user;
-    private String application;
-    private String state;
-    private String waitEventType;
-    private Long minDurationSeconds;
+    private OffsetDateTime from;
+    private OffsetDateTime to;
 }

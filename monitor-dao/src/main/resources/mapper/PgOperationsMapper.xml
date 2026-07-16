@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.PgOperationsMapper">
+  <sql id="eventFilter">
+    instance_id=#{instanceId} AND event_time BETWEEN #{from} AND #{to}
+    <if test="source != null and source != ''">AND source=#{source}</if>
+    <if test="category != null and category != ''">AND category=#{category}</if>
+    <if test="excludeAudit">AND category&lt;&gt;'audit'</if>
+    <if test="sqlState != null and sqlState != ''">AND sql_state=#{sqlState}</if>
+    <if test="database != null and database != ''">AND database_name=#{database}</if>
+    <if test="user != null and user != ''">AND user_name=#{user}</if>
+    <if test="keyword != null and keyword != ''">
+      AND (message ILIKE '%'||#{keyword}||'%' OR object_name ILIKE '%'||#{keyword}||'%' OR fingerprint=#{keyword})
+    </if>
+  </sql>
+  <select id="countEvents" resultType="long">
+    SELECT count(*) FROM pg_operational_event WHERE <include refid="eventFilter"/>
+  </select>
+  <select id="selectEvents" resultType="java.util.Map">
+    SELECT id,source,category,event_type,severity,database_name,user_name,object_name,
+           query_id,sql_state,message,fingerprint,payload,sensitive_redacted,event_time,collected_at
+      FROM pg_operational_event WHERE <include refid="eventFilter"/>
+     ORDER BY event_time DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="selectSummary" resultType="java.util.Map">
+    SELECT category,event_type,severity,count(*) event_count,count(DISTINCT fingerprint) fingerprint_count,
+           max(event_time) last_seen
+      FROM pg_operational_event WHERE instance_id=#{instanceId} AND category&lt;&gt;'audit' AND event_time&gt;=#{from}
+     GROUP BY category,event_type,severity ORDER BY event_count DESC
+  </select>
+  <select id="countRestoreDrills" resultType="long">
+    SELECT count(*) FROM pg_restore_drill WHERE instance_id=#{instanceId}
+  </select>
+  <select id="selectRestoreDrills" resultType="java.util.Map">
+    SELECT id,backup_id,target_time,started_at,finished_at,status,validation_result,duration_seconds,
+           owner_name,notes,created_at FROM pg_restore_drill
+     WHERE instance_id=#{instanceId} ORDER BY started_at DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <insert id="insertRestoreDrill" useGeneratedKeys="true" keyProperty="drill.id">
+    INSERT INTO pg_restore_drill(instance_id,backup_id,target_time,started_at,finished_at,status,
+      validation_result,duration_seconds,owner_name,notes,created_by)
+    VALUES(#{drill.instanceId},#{drill.backupId},#{drill.targetTime},#{drill.startedAt},#{drill.finishedAt},
+      #{drill.status},#{drill.validationResult},#{drill.durationSeconds},#{drill.ownerName},#{drill.notes},#{drill.createdBy})
+  </insert>
+</mapper>

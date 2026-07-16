@@ -95,6 +95,7 @@ public class PostgreSqlCollector extends AbstractDatabaseCollector {
         result.setObjectPoints(sink.objects());
         result.setTopSqlPoints(sink.topSql());
         result.setPgQueryStatPoints(sink.pgQueryStats());
+        result.setPgOperationalEventPoints(sink.pgOperationalEvents());
         result.setSlowSqlSamplePoints(sink.slowSqlSamples());
         sink.getItemErrors().forEach(err -> result.addItemError(err.code(), err.message()));
         return result;

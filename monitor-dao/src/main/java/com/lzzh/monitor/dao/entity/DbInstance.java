@@ -43,6 +43,8 @@ public class DbInstance {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> pgObjectDatabases;
 
+    /** PG 三期外部只读数据源；路径必须由 collector 节点可读，URL 禁止内嵌凭据。 */
+
     /** 最近一次 PG 能力探测快照。 */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<Map<String, Object>> pgCapabilities;

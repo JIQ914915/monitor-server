@@ -7,8 +7,10 @@ import com.lzzh.monitor.api.response.PgBlockingNodeVo;
 import com.lzzh.monitor.api.response.PgDatabaseVo;
 import com.lzzh.monitor.api.response.PgSessionVo;
 import com.lzzh.monitor.common.exception.BusinessException;
+import com.lzzh.monitor.common.result.PageResult;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.instance.InstanceService;
+import com.lzzh.monitor.service.support.Pages;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -70,22 +72,8 @@ public class PostgreSqlDiagnosticServiceImpl implements PostgreSqlDiagnosticServ
     }
 
     @Override
-    public List<PgSessionVo> sessions(PgSessionQueryRequest request) {
-        CollectTargetVo target = target(request.getInstanceId());
-        List<PgSessionVo> result = querySessions(target);
-        Set<Integer> blockers = new HashSet<>();
-        result.forEach(s -> blockers.addAll(s.getBlockedBy()));
-        result.forEach(s -> s.setRootBlocker(blockers.contains(s.getPid()) && s.getBlockedBy().isEmpty()));
-        return result.stream()
-                .filter(s -> matches(request.getDatabase(), s.getDatabase()))
-                .filter(s -> matches(request.getUser(), s.getUser()))
-                .filter(s -> matches(request.getApplication(), s.getApplication()))
-                .filter(s -> matches(request.getState(), s.getState()))
-                .filter(s -> matches(request.getWaitEventType(), s.getWaitEventType()))
-                .filter(s -> request.getMinDurationSeconds() == null
-                        || s.getDurationSeconds() >= request.getMinDurationSeconds())
-                .sorted(Comparator.comparingLong(PgSessionVo::getDurationSeconds).reversed())
-                .toList();
+    public PageResult<PgSessionVo> sessions(PgSessionQueryRequest request) {
+        return querySessionPage(target(request.getInstanceId()), request);
     }
 
     @Override
@@ -162,6 +150,73 @@ public class PostgreSqlDiagnosticServiceImpl implements PostgreSqlDiagnosticServ
         }
     }
 
+    private PageResult<PgSessionVo> querySessionPage(CollectTargetVo target, PgSessionQueryRequest request) {
+        Pages.PageWindow page=Pages.window(request);
+        String duration="GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - COALESCE(a.xact_start, a.query_start, a.state_change))))::bigint";
+        String filters="""
+                 FROM pg_stat_activity a
+                WHERE a.backend_type = 'client backend'
+                  AND a.pid <> pg_backend_pid()
+                  AND (? IS NULL OR lower(COALESCE(a.datname,'')) LIKE ?)
+                  AND (? IS NULL OR lower(COALESCE(a.usename,'')) LIKE ?)
+                  AND (? IS NULL OR lower(COALESCE(a.application_name,'')) LIKE ?)
+                  AND (? IS NULL OR lower(COALESCE(a.state,'')) LIKE ?)
+                  AND (? IS NULL OR lower(COALESCE(a.wait_event_type,'')) LIKE ?)
+                  AND (? IS NULL OR %s>=?)
+                """.formatted(duration);
+        String countSql="SELECT count(*) "+filters;
+        String dataSql="""
+                SELECT a.pid, a.datname, a.usename, a.application_name,
+                       a.client_addr::text AS client_addr, a.backend_type, a.state,
+                       a.xact_start, a.query_start, a.state_change,
+                       %s AS duration_seconds,
+                       a.wait_event_type, a.wait_event, a.query_id::text AS query_id,
+                       left(a.query, 4000) AS query, pg_blocking_pids(a.pid) AS blocked_by,
+                       ARRAY(SELECT DISTINCT COALESCE(n.nspname || '.' || c.relname, l.locktype) || ' [' || l.mode || ']'
+                               FROM pg_locks l LEFT JOIN pg_class c ON c.oid = l.relation
+                               LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+                              WHERE l.pid = a.pid AND NOT l.granted) AS locked_objects,
+                       (cardinality(pg_blocking_pids(a.pid))=0 AND EXISTS(
+                         SELECT 1 FROM pg_stat_activity b WHERE a.pid=ANY(pg_blocking_pids(b.pid)))) AS root_blocker
+                """.formatted(duration)+filters+" ORDER BY duration_seconds DESC LIMIT ? OFFSET ?";        try(Connection conn=open(target)){
+            long total;
+            try(PreparedStatement ps=conn.prepareStatement(countSql)){
+                ps.setQueryTimeout(QUERY_TIMEOUT_SECONDS);bindSessionFilters(ps,request);
+                try(ResultSet rs=ps.executeQuery()){total=rs.next()?rs.getLong(1):0;}
+            }
+            if(total==0)return PageResult.of(List.of(),0);
+            List<PgSessionVo> rows=new ArrayList<>();
+            try(PreparedStatement ps=conn.prepareStatement(dataSql)){
+                ps.setQueryTimeout(QUERY_TIMEOUT_SECONDS);int next=bindSessionFilters(ps,request);
+                ps.setInt(next++,page.pageSize());ps.setLong(next,page.offset());
+                try(ResultSet rs=ps.executeQuery()){while(rs.next())rows.add(readSession(rs,true));}
+            }
+            return PageResult.of(rows,total);
+        }catch(Exception e){throw diagnosticError("实时会话查询失败",e);}
+    }
+
+    private static int bindSessionFilters(PreparedStatement ps,PgSessionQueryRequest request)throws Exception{
+        int i=1;
+        i=bindContains(ps,i,request.getDatabase());i=bindContains(ps,i,request.getUser());
+        i=bindContains(ps,i,request.getApplication());i=bindContains(ps,i,request.getState());
+        i=bindContains(ps,i,request.getWaitEventType());
+        if(request.getMinDurationSeconds()==null){ps.setNull(i++,java.sql.Types.BIGINT);ps.setNull(i++,java.sql.Types.BIGINT);}
+        else{ps.setLong(i++,request.getMinDurationSeconds());ps.setLong(i++,request.getMinDurationSeconds());}
+        return i;
+    }
+    private static int bindContains(PreparedStatement ps,int index,String value)throws Exception{
+        String normalized=StringUtils.hasText(value)?value.trim().toLowerCase():null;
+        ps.setString(index++,normalized);ps.setString(index++,normalized==null?null:"%"+normalized+"%");return index;
+    }
+    private static PgSessionVo readSession(ResultSet rs,boolean withRoot)throws Exception{
+        PgSessionVo vo=new PgSessionVo();vo.setPid(rs.getInt("pid"));vo.setDatabase(rs.getString("datname"));
+        vo.setUser(rs.getString("usename"));vo.setApplication(rs.getString("application_name"));vo.setClientAddress(rs.getString("client_addr"));
+        vo.setBackendType(rs.getString("backend_type"));vo.setState(rs.getString("state"));vo.setTransactionStart(offset(rs,"xact_start"));
+        vo.setQueryStart(offset(rs,"query_start"));vo.setStateChange(offset(rs,"state_change"));vo.setDurationSeconds(rs.getLong("duration_seconds"));
+        vo.setWaitEventType(rs.getString("wait_event_type"));vo.setWaitEvent(rs.getString("wait_event"));vo.setQueryId(rs.getString("query_id"));
+        vo.setQuery(rs.getString("query"));vo.setBlockedBy(integerArray(rs.getArray("blocked_by")));vo.setLockedObjects(stringArray(rs.getArray("locked_objects")));
+        if(withRoot)vo.setRootBlocker(rs.getBoolean("root_blocker"));return vo;
+    }
     private List<PgSessionVo> querySessions(CollectTargetVo target) {
         List<PgSessionVo> result = new ArrayList<>();
         try (Connection conn = open(target);
