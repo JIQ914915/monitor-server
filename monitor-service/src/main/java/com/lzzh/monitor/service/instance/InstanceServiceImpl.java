@@ -115,7 +115,7 @@ public class InstanceServiceImpl implements InstanceService {
         if (version == null) {
             throw new BusinessException("数据库版本不存在: " + dbVersionId);
         }
-        if (!StringUtils.hasText(type.getCode()) || !DatabaseTypeCode.equals(type.getCode(), version.getDbType())) {
+        if (!dbTypeId.equals(version.getDbTypeId())) {
             throw new BusinessException("数据库版本不属于所选数据库类型");
         }
     }

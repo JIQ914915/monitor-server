@@ -7,20 +7,16 @@ import com.lzzh.monitor.api.response.DbTypeOptionVo;
 import com.lzzh.monitor.api.response.DbVersionOptionVo;
 import com.lzzh.monitor.common.datatype.DatabaseTypeCode;
 import com.lzzh.monitor.dao.entity.DatabaseType;
+import com.lzzh.monitor.dao.entity.DatabaseVersion;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.Comparator;
 import java.util.List;
 
-/**
- * 数据库类型/版本服务实现：从 database_type / database_version 读取，屏蔽两表 db_type 大小写不一致
- * （database_type.code=MYSQL、database_version.db_type=mysql、db_instance.db_type=MySQL），
- * 版本匹配一律大小写不敏感。
- */
+/** 数据库类型/版本服务实现：表间使用主键关联，code 仅作为采集器稳定标识。 */
 @Service
 public class DatabaseTypeServiceImpl implements DatabaseTypeService {
 
@@ -96,9 +92,7 @@ public class DatabaseTypeServiceImpl implements DatabaseTypeService {
             vo.setCode(t.getCode());
             vo.setLabel(t.getLabel());
             vo.setDefaultPort(t.getDefaultPort());
-            // database_version.db_type 保存稳定类型编码（小写）；不能使用展示名匹配，
-            // 例如 SQL Server 展示名包含空格，而类型编码为 SQLSERVER。
-            vo.setVersions(listVersionOptions(t.getCode()));
+            vo.setVersions(listVersionOptions(t.getId()));
             return vo;
         }).toList();
     }
@@ -108,11 +102,19 @@ public class DatabaseTypeServiceImpl implements DatabaseTypeService {
         if (!StringUtils.hasText(dbType)) {
             return List.of();
         }
-        String key = DatabaseTypeCode.normalize(dbType);
-        return versionMapper.selectList(new LambdaQueryWrapper<>())
+        DatabaseType type = typeMapper.selectList(null).stream()
+                .filter(t -> DatabaseTypeCode.equals(t.getCode(), dbType)
+                        || (t.getLabel() != null && t.getLabel().equalsIgnoreCase(dbType)))
+                .findFirst()
+                .orElse(null);
+        return type == null ? List.of() : listVersionOptions(type.getId());
+    }
+
+    private List<DbVersionOptionVo> listVersionOptions(Long dbTypeId) {
+        return versionMapper.selectList(new LambdaQueryWrapper<DatabaseVersion>()
+                        .eq(DatabaseVersion::getDbTypeId, dbTypeId)
+                        .orderByAsc(DatabaseVersion::getSortOrder))
                 .stream()
-                .filter(v -> v.getDbType() != null && DatabaseTypeCode.equals(v.getDbType(), key))
-                .sorted(Comparator.comparing(v -> v.getSortOrder() == null ? 0 : v.getSortOrder()))
                 .map(v -> new DbVersionOptionVo(
                         v.getId(),
                         v.getVersionCode(),

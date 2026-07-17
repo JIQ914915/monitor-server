@@ -153,7 +153,7 @@ class InstanceServiceImplTest {
         type.setCode("MYSQL");
         DatabaseVersion version = new DatabaseVersion();
         version.setId(10L);
-        version.setDbType("mysql");
+        version.setDbTypeId(1L);
         when(databaseTypeMapper.selectById(1L)).thenReturn(type);
         when(databaseVersionMapper.selectById(10L)).thenReturn(version);
     }

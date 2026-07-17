@@ -17,7 +17,7 @@ import static org.mockito.Mockito.when;
 class DatabaseTypeServiceImplTest {
 
     @Test
-    void listTypeOptionsMatchesSqlServerVersionsByStableCode() {
+    void listTypeOptionsMatchesSqlServerVersionsByTypeId() {
         DatabaseTypeMapper typeMapper = mock(DatabaseTypeMapper.class);
         DatabaseVersionMapper versionMapper = mock(DatabaseVersionMapper.class);
         DatabaseTypeServiceImpl service = new DatabaseTypeServiceImpl();
@@ -32,7 +32,7 @@ class DatabaseTypeServiceImplTest {
 
         DatabaseVersion version = new DatabaseVersion();
         version.setId(10L);
-        version.setDbType("sqlserver");
+        version.setDbTypeId(3L);
         version.setVersionCode("2022");
         version.setVersionName("SQL Server 2022");
         version.setSortOrder(1);

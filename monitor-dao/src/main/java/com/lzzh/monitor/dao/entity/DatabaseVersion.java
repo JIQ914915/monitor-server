@@ -19,7 +19,7 @@ public class DatabaseVersion {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String dbType;
+    private Long dbTypeId;
 
     /** 版本编码（5.6/5.7/8.0）。 */
     private String versionCode;

@@ -30,18 +30,18 @@ public class DatabaseVersionServiceImpl implements DatabaseVersionService {
     @Override
     public List<DatabaseVersionVo> list(Long dbTypeId) {
         List<DatabaseType> types = databaseTypeMapper.selectList(null);
-        Map<String, Long> typeIds = types.stream().collect(Collectors.toMap(
-                type -> DatabaseTypeCode.normalize(type.getCode()), DatabaseType::getId, (left, right) -> left));
+        Map<Long, DatabaseType> typeMap = types.stream().collect(Collectors.toMap(
+                DatabaseType::getId, type -> type, (left, right) -> left));
         LambdaQueryWrapper<DatabaseVersion> query = new LambdaQueryWrapper<>();
         if (dbTypeId != null) {
-            DatabaseType type = requireType(dbTypeId);
-            query.eq(DatabaseVersion::getDbType, DatabaseTypeCode.normalize(type.getCode()));
+            requireType(dbTypeId);
+            query.eq(DatabaseVersion::getDbTypeId, dbTypeId);
         }
         return mapper.selectList(query).stream()
                 .sorted(Comparator
-                        .comparing((DatabaseVersion version) -> version.getDbType() == null ? "" : version.getDbType())
+                        .comparing((DatabaseVersion version) -> version.getDbTypeId() == null ? 0L : version.getDbTypeId())
                         .thenComparing(version -> version.getSortOrder() == null ? 0 : version.getSortOrder()))
-                .map(version -> toVo(version, typeIds.get(DatabaseTypeCode.normalize(version.getDbType()))))
+                .map(version -> toVo(version, typeMap.get(version.getDbTypeId())))
                 .toList();
     }
 
@@ -70,11 +70,11 @@ public class DatabaseVersionServiceImpl implements DatabaseVersionService {
         return type;
     }
 
-    private DatabaseVersionVo toVo(DatabaseVersion version, Long dbTypeId) {
+    private DatabaseVersionVo toVo(DatabaseVersion version, DatabaseType type) {
         DatabaseVersionVo vo = new DatabaseVersionVo();
         vo.setId(version.getId());
-        vo.setDbTypeId(dbTypeId);
-        vo.setDbType(DatabaseTypeCode.normalize(version.getDbType()));
+        vo.setDbTypeId(version.getDbTypeId());
+        vo.setDbType(type == null ? null : DatabaseTypeCode.normalize(type.getCode()));
         vo.setVersionCode(version.getVersionCode());
         vo.setVersionName(version.getVersionName());
         vo.setSortOrder(version.getSortOrder());
@@ -88,7 +88,7 @@ public class DatabaseVersionServiceImpl implements DatabaseVersionService {
         DatabaseType type = requireType(request.getDbTypeId());
         DatabaseVersion entity = new DatabaseVersion();
         entity.setId(request.getId());
-        entity.setDbType(DatabaseTypeCode.normalize(type.getCode()));
+        entity.setDbTypeId(type.getId());
         entity.setVersionCode(request.getVersionCode());
         entity.setVersionName(StringUtils.hasText(request.getVersionName())
                 ? request.getVersionName() : type.getLabel() + " " + request.getVersionCode());
