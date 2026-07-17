@@ -4,9 +4,9 @@ package com.lzzh.monitor.common.enums;
 public enum DbType {
 
     MYSQL("MySQL"),
-    ORACLE("Oracle"),         // 预留
-    POSTGRESQL("PostgreSQL"), // 预留
-    SQLSERVER("SQL Server");  // 预留
+    ORACLE("Oracle"),
+    POSTGRESQL("PostgreSQL"),
+    SQLSERVER("SQLServer");
 
     private final String label;
 
