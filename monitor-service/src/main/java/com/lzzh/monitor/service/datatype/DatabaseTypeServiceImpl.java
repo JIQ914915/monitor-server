@@ -95,8 +95,9 @@ public class DatabaseTypeServiceImpl implements DatabaseTypeService {
             vo.setCode(t.getCode());
             vo.setLabel(t.getLabel());
             vo.setDefaultPort(t.getDefaultPort());
-            // 版本以 label（如 MySQL）或 code（MYSQL）匹配 database_version.db_type（mysql），大小写不敏感
-            vo.setVersions(listVersionOptions(t.getLabel() != null ? t.getLabel() : t.getCode()));
+            // database_version.db_type 保存稳定类型编码（小写）；不能使用展示名匹配，
+            // 例如 SQL Server 展示名包含空格，而类型编码为 SQLSERVER。
+            vo.setVersions(listVersionOptions(t.getCode()));
             return vo;
         }).toList();
     }

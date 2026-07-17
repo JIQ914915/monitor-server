@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,7 +36,7 @@ public class DatabaseTypeController {
      * @return 数据库类型选项列表
      */
     @Operation(summary = "数据库类型选项（下拉）", description = "返回启用的数据库类型及其默认端口、支持版本列表")
-    @GetMapping
+    @PostMapping("/options")
     public Result<List<DbTypeOptionVo>> listOptions() {
         return Result.ok(databaseTypeService.listTypeOptions());
     }
@@ -50,7 +49,7 @@ public class DatabaseTypeController {
      * @return 数据库类型管理视图列表
      */
     @Operation(summary = "数据库类型列表（管理）", description = "返回全部数据库类型（含禁用），供系统设置维护")
-    @GetMapping("/admin")
+    @PostMapping("/admin/list")
     @RequiresPerm("db_type:list")
     public Result<List<DatabaseTypeVo>> listAll() {
         return Result.ok(databaseTypeService.listAll());

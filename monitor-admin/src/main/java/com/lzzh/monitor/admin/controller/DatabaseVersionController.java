@@ -1,6 +1,7 @@
 package com.lzzh.monitor.admin.controller;
 
 import com.lzzh.monitor.admin.security.RequiresPerm;
+import com.lzzh.monitor.api.request.DatabaseVersionListRequest;
 import com.lzzh.monitor.api.request.DatabaseVersionRequest;
 import com.lzzh.monitor.api.request.IdRequest;
 import com.lzzh.monitor.api.response.DatabaseVersionVo;
@@ -11,11 +12,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -32,14 +31,14 @@ public class DatabaseVersionController {
     /**
      * 查询数据库版本列表（可按 dbType 过滤）。
      *
-     * @param dbType 数据库类型（可空，留空返回全部）
+     * @param req 查询条件（可空，留空返回全部）
      * @return 版本列表
      */
     @Operation(summary = "数据库版本列表", description = "返回全部版本配置（可按 dbType 过滤），供系统设置维护")
-    @GetMapping
+    @PostMapping("/list")
     @RequiresPerm("db_version:list")
-    public Result<List<DatabaseVersionVo>> list(@RequestParam(required = false) String dbType) {
-        return Result.ok(versionService.list(dbType));
+    public Result<List<DatabaseVersionVo>> list(@RequestBody(required = false) DatabaseVersionListRequest req) {
+        return Result.ok(versionService.list(req == null ? null : req.getDbType()));
     }
 
     /**
