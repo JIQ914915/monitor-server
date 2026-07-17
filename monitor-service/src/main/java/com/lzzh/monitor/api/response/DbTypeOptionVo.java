@@ -16,7 +16,7 @@ public class DbTypeOptionVo {
     @Schema(description = "类型编码", example = "MYSQL")
     private String code;
 
-    @Schema(description = "展示名（同时作为实例 dbType 存储值）", example = "MySQL")
+    @Schema(description = "展示名（仅用于页面显示）", example = "MySQL")
     private String label;
 
     @Schema(description = "默认端口", example = "3306")

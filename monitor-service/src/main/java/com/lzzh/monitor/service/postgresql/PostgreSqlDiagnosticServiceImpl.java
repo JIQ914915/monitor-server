@@ -7,6 +7,8 @@ import com.lzzh.monitor.api.response.PgBlockingNodeVo;
 import com.lzzh.monitor.api.response.PgDatabaseVo;
 import com.lzzh.monitor.api.response.PgSessionVo;
 import com.lzzh.monitor.common.exception.BusinessException;
+
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.result.PageResult;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import com.lzzh.monitor.service.instance.InstanceService;
@@ -317,7 +319,7 @@ public class PostgreSqlDiagnosticServiceImpl implements PostgreSqlDiagnosticServ
         if (target == null) {
             throw new BusinessException("实例不存在");
         }
-        if (!"POSTGRESQL".equalsIgnoreCase(target.getDbType())) {
+        if (DbType.of(target.getDbType()) != DbType.POSTGRESQL) {
             throw new BusinessException("该功能仅支持 PostgreSQL 实例");
         }
         return target;

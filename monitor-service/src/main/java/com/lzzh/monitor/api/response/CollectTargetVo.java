@@ -14,8 +14,11 @@ public class CollectTargetVo {
     @Schema(description = "实例主键 ID", example = "1")
     private Long id;
 
-    @Schema(description = "数据库类型（解析自 dbTypeId，如 MySQL）", example = "MySQL")
+    @Schema(description = "数据库类型稳定编码（解析自 dbTypeId）", example = "MYSQL")
     private String dbType;
+
+    @Schema(description = "数据库类型展示名", example = "MySQL")
+    private String dbTypeLabel;
 
     @Schema(description = "数据库版本编码（解析自 dbVersionId，供版本适配）", example = "8.0")
     private String dbVersion;

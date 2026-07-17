@@ -3,7 +3,11 @@ package com.lzzh.monitor.service.datatype;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzzh.monitor.api.request.DatabaseVersionRequest;
 import com.lzzh.monitor.api.response.DatabaseVersionVo;
+import com.lzzh.monitor.common.datatype.DatabaseTypeCode;
+import com.lzzh.monitor.common.exception.BusinessException;
+import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.entity.DatabaseVersion;
+import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -11,6 +15,8 @@ import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /** 数据库版本管理服务实现。 */
 @Service
@@ -18,32 +24,37 @@ public class DatabaseVersionServiceImpl implements DatabaseVersionService {
 
     @Resource
     private DatabaseVersionMapper mapper;
+    @Resource
+    private DatabaseTypeMapper databaseTypeMapper;
 
     @Override
-    public List<DatabaseVersionVo> list(String dbType) {
-        LambdaQueryWrapper<DatabaseVersion> qw = new LambdaQueryWrapper<>();
-        if (StringUtils.hasText(dbType)) {
-            qw.eq(DatabaseVersion::getDbType, dbType.trim().toLowerCase());
+    public List<DatabaseVersionVo> list(Long dbTypeId) {
+        List<DatabaseType> types = databaseTypeMapper.selectList(null);
+        Map<String, Long> typeIds = types.stream().collect(Collectors.toMap(
+                type -> DatabaseTypeCode.normalize(type.getCode()), DatabaseType::getId, (left, right) -> left));
+        LambdaQueryWrapper<DatabaseVersion> query = new LambdaQueryWrapper<>();
+        if (dbTypeId != null) {
+            DatabaseType type = requireType(dbTypeId);
+            query.eq(DatabaseVersion::getDbType, DatabaseTypeCode.normalize(type.getCode()));
         }
-        return mapper.selectList(qw).stream()
+        return mapper.selectList(query).stream()
                 .sorted(Comparator
-                        .comparing((DatabaseVersion v) -> v.getDbType() == null ? "" : v.getDbType())
-                        .thenComparing(v -> v.getSortOrder() == null ? 0 : v.getSortOrder()))
-                .map(this::toVo)
+                        .comparing((DatabaseVersion version) -> version.getDbType() == null ? "" : version.getDbType())
+                        .thenComparing(version -> version.getSortOrder() == null ? 0 : version.getSortOrder()))
+                .map(version -> toVo(version, typeIds.get(DatabaseTypeCode.normalize(version.getDbType()))))
                 .toList();
     }
 
     @Override
-    public Long create(DatabaseVersionRequest req) {
-        DatabaseVersion entity = toEntity(req);
+    public Long create(DatabaseVersionRequest request) {
+        DatabaseVersion entity = toEntity(request);
         mapper.insert(entity);
         return entity.getId();
     }
 
     @Override
-    public void update(DatabaseVersionRequest req) {
-        DatabaseVersion entity = toEntity(req);
-        mapper.updateById(entity);
+    public void update(DatabaseVersionRequest request) {
+        mapper.updateById(toEntity(request));
     }
 
     @Override
@@ -51,30 +62,38 @@ public class DatabaseVersionServiceImpl implements DatabaseVersionService {
         mapper.deleteById(id);
     }
 
-    private DatabaseVersionVo toVo(DatabaseVersion v) {
+    private DatabaseType requireType(Long id) {
+        DatabaseType type = id == null ? null : databaseTypeMapper.selectById(id);
+        if (type == null || !StringUtils.hasText(type.getCode())) {
+            throw new BusinessException("数据库类型不存在: " + id);
+        }
+        return type;
+    }
+
+    private DatabaseVersionVo toVo(DatabaseVersion version, Long dbTypeId) {
         DatabaseVersionVo vo = new DatabaseVersionVo();
-        vo.setId(v.getId());
-        vo.setDbType(v.getDbType());
-        vo.setVersionCode(v.getVersionCode());
-        vo.setVersionName(v.getVersionName());
-        vo.setSortOrder(v.getSortOrder());
-        vo.setDescription(v.getDescription());
-        vo.setCreatedAt(v.getCreatedAt());
-        vo.setUpdatedAt(v.getUpdatedAt());
+        vo.setId(version.getId());
+        vo.setDbTypeId(dbTypeId);
+        vo.setDbType(DatabaseTypeCode.normalize(version.getDbType()));
+        vo.setVersionCode(version.getVersionCode());
+        vo.setVersionName(version.getVersionName());
+        vo.setSortOrder(version.getSortOrder());
+        vo.setDescription(version.getDescription());
+        vo.setCreatedAt(version.getCreatedAt());
+        vo.setUpdatedAt(version.getUpdatedAt());
         return vo;
     }
 
-    private DatabaseVersion toEntity(DatabaseVersionRequest req) {
+    private DatabaseVersion toEntity(DatabaseVersionRequest request) {
+        DatabaseType type = requireType(request.getDbTypeId());
         DatabaseVersion entity = new DatabaseVersion();
-        entity.setId(req.getId());
-        // dbType 统一小写存储，与 database_version 既有数据保持一致
-        entity.setDbType(StringUtils.hasText(req.getDbType()) ? req.getDbType().trim().toLowerCase() : null);
-        entity.setVersionCode(req.getVersionCode());
-        entity.setVersionName(StringUtils.hasText(req.getVersionName())
-                ? req.getVersionName()
-                : req.getDbType() + " " + req.getVersionCode());
-        entity.setSortOrder(req.getSortOrder() != null ? req.getSortOrder() : 0);
-        entity.setDescription(req.getDescription());
+        entity.setId(request.getId());
+        entity.setDbType(DatabaseTypeCode.normalize(type.getCode()));
+        entity.setVersionCode(request.getVersionCode());
+        entity.setVersionName(StringUtils.hasText(request.getVersionName())
+                ? request.getVersionName() : type.getLabel() + " " + request.getVersionCode());
+        entity.setSortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0);
+        entity.setDescription(request.getDescription());
         return entity;
     }
 }

@@ -1,6 +1,8 @@
 package com.lzzh.monitor.service.postgresql;
 
 import com.lzzh.monitor.api.request.PgPageRequest;
+
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.api.request.PgPlanCaptureRequest;
 import com.lzzh.monitor.api.request.PgQueryAnalyticsRequest;
 import com.lzzh.monitor.api.response.PgAdvisorVo;
@@ -167,7 +169,7 @@ public class PostgreSqlPhase2ServiceImpl implements PostgreSqlPhase2Service {
         }
         var target = instanceService.getCollectTarget(instanceId);
         if (target == null) throw new BusinessException("实例不存在");
-        if (!"POSTGRESQL".equalsIgnoreCase(target.getDbType())) {
+        if (DbType.of(target.getDbType()) != DbType.POSTGRESQL) {
             throw new BusinessException("该功能仅支持 PostgreSQL 实例");
         }
         return target;

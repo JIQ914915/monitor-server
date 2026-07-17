@@ -49,7 +49,7 @@
         SELECT e.rule_name, e.rule_level, count(*) AS cnt,
           sum(COALESCE(e.trigger_count, 1)) AS trigger_total,
           max(r.metric_name) AS metric_code,
-          lower(max(dt.code)) AS db_type
+          max(dt.code) AS db_type
         FROM alert_event e
         LEFT JOIN alert_rule r ON r.id = e.rule_id
         LEFT JOIN db_instance i ON i.id = e.instance_id

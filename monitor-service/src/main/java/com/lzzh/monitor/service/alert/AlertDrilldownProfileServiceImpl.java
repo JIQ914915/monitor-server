@@ -3,6 +3,7 @@ package com.lzzh.monitor.service.alert;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzzh.monitor.api.request.DrilldownProfileSaveRequest;
 import com.lzzh.monitor.api.response.DrilldownProfileVo;
+import com.lzzh.monitor.common.datatype.DatabaseTypeCode;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.AlertDrilldownProfile;
 import com.lzzh.monitor.dao.mapper.AlertDrilldownProfileMapper;
@@ -108,7 +109,7 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
             return null;
         }
         enabled = enabled.stream()
-                .filter(p -> dbType.equalsIgnoreCase(p.getDbType()))
+                .filter(p -> DatabaseTypeCode.equals(dbType, p.getDbType()))
                 .toList();
         if (enabled.isEmpty()) {
             return null;
@@ -149,7 +150,7 @@ public class AlertDrilldownProfileServiceImpl implements AlertDrilldownProfileSe
     private static void applyRequest(AlertDrilldownProfile p, DrilldownProfileSaveRequest req) {
         p.setProfileCode(req.getProfileCode().trim());
         p.setProfileLabel(req.getProfileLabel().trim());
-        p.setDbType(req.getDbType().trim().toLowerCase());
+        p.setDbType(DatabaseTypeCode.normalize(req.getDbType()));
         p.setMatchRules(req.getMatchRules() == null ? List.of() : req.getMatchRules());
         p.setRelatedMetrics(req.getRelatedMetrics() == null ? List.of() : req.getRelatedMetrics());
         p.setCauses(req.getCauses() == null ? List.of() : req.getCauses());

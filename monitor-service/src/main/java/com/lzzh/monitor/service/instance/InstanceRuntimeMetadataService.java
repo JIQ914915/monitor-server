@@ -1,5 +1,6 @@
 package com.lzzh.monitor.service.instance;
 
+import com.lzzh.monitor.common.datatype.DatabaseTypeCode;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.entity.DatabaseVersion;
@@ -136,7 +137,7 @@ public class InstanceRuntimeMetadataService implements ApplicationRunner {
             return null;
         }
         return new InstanceRuntimeMetadata(instance.getId(), type.getId(), version.getId(),
-                type.getCode().trim().toUpperCase(),
+                DatabaseTypeCode.normalize(type.getCode()),
                 StringUtils.hasText(type.getLabel()) ? type.getLabel() : type.getCode(),
                 version.getVersionCode(), type.getDriverClass(), type.getUrlTemplate());
     }

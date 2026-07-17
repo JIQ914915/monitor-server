@@ -85,13 +85,14 @@ public final class InstanceConverter {
      * 实体 → 采集目标 VO（含连接凭据，仅供 collector 内部使用）。
      *
      * @param e           实体（持久字段）
-     * @param dbType      数据库类型展示名
+     * @param dbTypeCode  数据库类型稳定编码
+     * @param dbTypeLabel 数据库类型展示名
      * @param dbVersion   数据库版本编码
      * @param driverClass JDBC 驱动类名，来自 database_type
      * @param urlTemplate JDBC URL 模板，来自 database_type
      */
     public static CollectTargetVo toCollectTarget(DbInstance e,
-                                                   String dbType, String dbVersion,
+                                                   String dbTypeCode, String dbTypeLabel, String dbVersion,
                                                    String driverClass, String urlTemplate) {
         if (e == null) {
             return null;
@@ -100,7 +101,8 @@ public final class InstanceConverter {
         t.setId(e.getId());
         t.setInstanceCode(e.getInstanceCode());
         t.setInstanceName(e.getName());
-        t.setDbType(dbType);
+        t.setDbType(dbTypeCode);
+        t.setDbTypeLabel(dbTypeLabel);
         t.setDbVersion(dbVersion);
         t.setDriverClass(driverClass);
         t.setUrlTemplate(urlTemplate);

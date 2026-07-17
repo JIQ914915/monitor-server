@@ -29,6 +29,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import com.lzzh.monitor.common.enums.DbType;
 import java.util.Set;
 
 /** MySQL P0/P1 只读诊断编排：复用历史指标，深查询使用短连接、超时与行数上限。 */
@@ -167,7 +169,7 @@ public class MySqlDiagnosticService {
         Map<String,Object> result=new LinkedHashMap<>();result.put("status",top.isEmpty()?"no_data":"normal");result.put("dominantWait",dominant);result.put("topSql",top);result.put("trends",trends);result.put("conclusion",top.isEmpty()?"当前窗口缺少 Top SQL 数据，无法生成确定性根因":"主要等待为 "+dominant+"；已列出同窗口主要贡献 SQL 与主机压力，请结合业务变更人工确认");return result;
     }
 
-    private CollectTargetVo requireTarget(Long id){if(id==null||!dataScopeService.currentScope().allows(id))throw new BusinessException("无权访问该实例");CollectTargetVo t=instanceService.getCollectTarget(id);if(t==null)throw new BusinessException("实例不存在");if(!"MYSQL".equalsIgnoreCase(t.getDbType()))throw new BusinessException("该功能仅支持 MySQL 实例");return t;}
+    private CollectTargetVo requireTarget(Long id){if(id==null||!dataScopeService.currentScope().allows(id))throw new BusinessException("无权访问该实例");CollectTargetVo t=instanceService.getCollectTarget(id);if(t==null)throw new BusinessException("实例不存在");if(DbType.of(t.getDbType()) != DbType.MYSQL)throw new BusinessException("该功能仅支持 MySQL 实例");return t;}
     private Connection open(CollectTargetVo t)throws Exception{DriverManager.setLoginTimeout(5);String url=t.getUrlTemplate().replace("{host}",value(t.getHost())).replace("{port}",t.getPort()==null?"":String.valueOf(t.getPort())).replace("{database}",value(t.getDatabaseName()));Connection c=DriverManager.getConnection(url,t.getConnUser(),t.getConnPassword());c.setReadOnly(true);return c;}
     private List<Map<String,Object>> query(Connection c,String sql,int limit,boolean optional)throws Exception{try(Statement st=c.createStatement()){st.setQueryTimeout(10);st.setMaxRows(limit);try(ResultSet rs=st.executeQuery(sql)){List<Map<String,Object>> out=new ArrayList<>();while(rs.next()&&out.size()<limit)out.add(row(rs));return out;}}catch(Exception e){if(optional)return List.of();throw e;}}
     private static Map<String,Object> row(ResultSet rs)throws Exception{ResultSetMetaData m=rs.getMetaData();Map<String,Object> r=new LinkedHashMap<>();for(int i=1;i<=m.getColumnCount();i++){Object v=rs.getObject(i);if(v instanceof String s)v=truncate(s,1000);r.put(m.getColumnLabel(i),v);}return r;}

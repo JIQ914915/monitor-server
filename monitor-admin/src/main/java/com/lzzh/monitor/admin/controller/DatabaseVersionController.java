@@ -38,7 +38,7 @@ public class DatabaseVersionController {
     @PostMapping("/list")
     @RequiresPerm("db_version:list")
     public Result<List<DatabaseVersionVo>> list(@RequestBody(required = false) DatabaseVersionListRequest req) {
-        return Result.ok(versionService.list(req == null ? null : req.getDbType()));
+        return Result.ok(versionService.list(req == null ? null : req.getDbTypeId()));
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.connection;
 
 import com.lzzh.monitor.api.response.CollectTargetVo;
+import com.lzzh.monitor.common.datatype.JdbcUrlTemplate;
 import com.lzzh.monitor.collector.spi.model.TargetDataSource;
 import org.springframework.util.StringUtils;
 
@@ -18,10 +19,8 @@ public final class TargetDataSourceFactory {
             throw new IllegalStateException("实例 " + target.getId() + " 对应数据库类型未配置 driver_class");
         }
         TargetDataSource dataSource = new TargetDataSource();
-        dataSource.setJdbcUrl(target.getUrlTemplate()
-                .replace("{host}", target.getHost() == null ? "" : target.getHost())
-                .replace("{port}", target.getPort() == null ? "" : String.valueOf(target.getPort()))
-                .replace("{database}", target.getDatabaseName() == null ? "" : target.getDatabaseName()));
+        dataSource.setJdbcUrl(JdbcUrlTemplate.render(target.getUrlTemplate(),
+                target.getHost(), target.getPort(), target.getDatabaseName()));
         dataSource.setUsername(target.getConnUser());
         dataSource.setPassword(target.getConnPassword());
         dataSource.setDriverClass(target.getDriverClass());

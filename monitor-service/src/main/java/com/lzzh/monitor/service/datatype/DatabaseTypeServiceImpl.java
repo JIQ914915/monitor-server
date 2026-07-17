@@ -5,6 +5,7 @@ import com.lzzh.monitor.api.request.DatabaseTypeRequest;
 import com.lzzh.monitor.api.response.DatabaseTypeVo;
 import com.lzzh.monitor.api.response.DbTypeOptionVo;
 import com.lzzh.monitor.api.response.DbVersionOptionVo;
+import com.lzzh.monitor.common.datatype.DatabaseTypeCode;
 import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
@@ -71,7 +72,7 @@ public class DatabaseTypeServiceImpl implements DatabaseTypeService {
     private DatabaseType toEntity(DatabaseTypeRequest req) {
         DatabaseType entity = new DatabaseType();
         entity.setId(req.getId());
-        entity.setCode(req.getCode());
+        entity.setCode(DatabaseTypeCode.normalize(req.getCode()));
         entity.setLabel(req.getLabel());
         entity.setDriverClass(req.getDriverClass());
         entity.setUrlTemplate(req.getUrlTemplate());
@@ -107,10 +108,10 @@ public class DatabaseTypeServiceImpl implements DatabaseTypeService {
         if (!StringUtils.hasText(dbType)) {
             return List.of();
         }
-        String key = dbType.trim();
+        String key = DatabaseTypeCode.normalize(dbType);
         return versionMapper.selectList(new LambdaQueryWrapper<>())
                 .stream()
-                .filter(v -> v.getDbType() != null && v.getDbType().equalsIgnoreCase(key))
+                .filter(v -> v.getDbType() != null && DatabaseTypeCode.equals(v.getDbType(), key))
                 .sorted(Comparator.comparing(v -> v.getSortOrder() == null ? 0 : v.getSortOrder()))
                 .map(v -> new DbVersionOptionVo(
                         v.getId(),

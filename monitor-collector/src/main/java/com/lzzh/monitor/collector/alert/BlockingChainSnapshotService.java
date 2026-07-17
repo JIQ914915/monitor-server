@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.alert;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.lzzh.monitor.api.response.CollectTargetVo;
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.dao.entity.AlertEvent;
 import com.lzzh.monitor.dao.mapper.AlertEventMapper;
 import com.lzzh.monitor.service.instance.InstanceService;
@@ -161,7 +162,7 @@ public class BlockingChainSnapshotService {
                     rows.add(row);
                 }
             }
-            if (("MYSQL".equalsIgnoreCase(target.getDbType()) || "MySQL".equalsIgnoreCase(target.getDbType()))
+            if (DbType.of(target.getDbType()) == DbType.MYSQL
                     && !String.valueOf(target.getDbVersion()).startsWith("5.6") && rows.size() < MAX_ROWS) {
                 try (Statement mdl = conn.createStatement()) {
                     mdl.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
@@ -211,7 +212,7 @@ public class BlockingChainSnapshotService {
     }
 
     static String blockingChainSql(String dbType, String dbVersion) {
-        if ("SQLSERVER".equalsIgnoreCase(dbType) || "SQL Server".equalsIgnoreCase(dbType)) {
+        if (DbType.of(dbType) == DbType.SQLSERVER) {
             return """
                     SELECT DATEDIFF(second,r.start_time,SYSDATETIME()) AS wait_age_secs,
                            COALESCE(OBJECT_SCHEMA_NAME(p.object_id,r.database_id)+'.'+OBJECT_NAME(p.object_id,r.database_id),
@@ -229,7 +230,7 @@ public class BlockingChainSnapshotService {
                      ORDER BY wait_age_secs DESC
                     """;
         }
-        if ("PostgreSQL".equalsIgnoreCase(dbType) || "POSTGRESQL".equalsIgnoreCase(dbType)) {
+        if (DbType.of(dbType) == DbType.POSTGRESQL) {
             return """
                     SELECT GREATEST(0, EXTRACT(EPOCH FROM
                                (clock_timestamp() - COALESCE(wa.query_start, wa.xact_start))))::bigint

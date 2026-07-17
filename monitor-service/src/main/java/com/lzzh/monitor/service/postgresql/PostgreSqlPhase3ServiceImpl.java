@@ -2,6 +2,8 @@ package com.lzzh.monitor.service.postgresql;
 
 import cn.hutool.json.JSONUtil;
 import com.lzzh.monitor.api.request.PgOperationalEventQuery;
+
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.api.request.PgPageRequest;
 import com.lzzh.monitor.api.request.PgRestoreDrillRequest;
 import com.lzzh.monitor.api.response.PgOperationalEventVo;
@@ -103,7 +105,7 @@ public class PostgreSqlPhase3ServiceImpl implements PostgreSqlPhase3Service {
     private void requireDictValue(String dictType,String value,String field){
         if(value==null||dictItemMapper.selectCount(new LambdaQueryWrapper<SysDictItem>().eq(SysDictItem::getDictType,dictType).eq(SysDictItem::getItemValue,value).eq(SysDictItem::getStatus,"enabled"))==0) throw new BusinessException(field+"不合法或已停用");
     }
-    private void requireInstance(Long id){if(id==null||!dataScopeService.currentScope().allows(id))throw new BusinessException("无权访问该实例");var target=instanceService.getCollectTarget(id);if(target==null)throw new BusinessException("实例不存在");if(!"POSTGRESQL".equalsIgnoreCase(target.getDbType()))throw new BusinessException("该功能仅支持 PostgreSQL 实例");}
+    private void requireInstance(Long id){if(id==null||!dataScopeService.currentScope().allows(id))throw new BusinessException("无权访问该实例");var target=instanceService.getCollectTarget(id);if(target==null)throw new BusinessException("实例不存在");if(DbType.of(target.getDbType()) != DbType.POSTGRESQL)throw new BusinessException("该功能仅支持 PostgreSQL 实例");}
     private PgOperationalEventVo event(Map<String,Object> r){PgOperationalEventVo v=new PgOperationalEventVo();v.setId(longValue(r,"id"));v.setSource(text(r,"source"));v.setCategory(text(r,"category"));v.setEventType(text(r,"event_type"));v.setSeverity(text(r,"severity"));v.setDatabase(text(r,"database_name"));v.setUser(text(r,"user_name"));v.setObjectName(text(r,"object_name"));v.setQueryId(text(r,"query_id"));v.setSqlState(text(r,"sql_state"));v.setMessage(text(r,"message"));v.setFingerprint(text(r,"fingerprint"));v.setSensitiveRedacted(Boolean.TRUE.equals(r.get("sensitive_redacted")));v.setPayload(json(r.get("payload")));v.setEventTime(time(r.get("event_time")));v.setCollectedAt(time(r.get("collected_at")));return v;}
     private PgOperationalSummaryVo summaryVo(Map<String,Object> r){
         PgOperationalSummaryVo v=new PgOperationalSummaryVo();

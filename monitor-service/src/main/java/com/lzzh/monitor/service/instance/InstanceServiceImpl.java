@@ -8,6 +8,9 @@ import com.lzzh.monitor.api.request.ConnectionTestRequest;
 import com.lzzh.monitor.api.request.InstancePageRequest;
 import com.lzzh.monitor.api.request.InstanceRequest;
 import com.lzzh.monitor.api.response.*;
+import com.lzzh.monitor.common.datatype.DatabaseTypeCode;
+import com.lzzh.monitor.common.datatype.JdbcUrlTemplate;
+import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.common.result.PageResult;
 import com.lzzh.monitor.common.security.PasswordCipher;
@@ -112,7 +115,7 @@ public class InstanceServiceImpl implements InstanceService {
         if (version == null) {
             throw new BusinessException("数据库版本不存在: " + dbVersionId);
         }
-        if (!StringUtils.hasText(type.getCode()) || !type.getCode().equalsIgnoreCase(version.getDbType())) {
+        if (!StringUtils.hasText(type.getCode()) || !DatabaseTypeCode.equals(type.getCode(), version.getDbType())) {
             throw new BusinessException("数据库版本不属于所选数据库类型");
         }
     }
@@ -619,29 +622,33 @@ public class InstanceServiceImpl implements InstanceService {
 
     @Override
     public ConnectionTestVo testConnection(ConnectionTestRequest req) {
-        String dbType = resolveConnectionDbType(req);
-        String url = buildJdbcUrl(req, dbType);
+        ConnectionTypeConfig config = resolveConnectionType(req);
+        String url;
+        try {
+            url = JdbcUrlTemplate.render(config.urlTemplate(), req.getHost(), req.getPort(), req.getDatabaseName());
+            if (StringUtils.hasText(config.driverClass())) {
+                Class.forName(config.driverClass());
+            }
+        } catch (IllegalArgumentException | ClassNotFoundException e) {
+            throw new BusinessException("连接配置无效：" + e.getMessage());
+        }
         DriverManager.setLoginTimeout(5);
-        try (Connection conn = DriverManager.getConnection(url,
-                req.getConnUser(), req.getConnPassword())) {
+        try (Connection conn = DriverManager.getConnection(url, req.getConnUser(), req.getConnPassword())) {
             String version = conn.getMetaData().getDatabaseProductVersion();
             ConnectionTestVo vo = new ConnectionTestVo();
             vo.setVersion(StringUtils.hasText(version) ? version : "unknown");
-            if ("mysql".equalsIgnoreCase(dbType)) {
-                vo.setChecks(checkMySqlPrivileges(conn, version, req.getConnUser()));
-            } else if ("postgresql".equalsIgnoreCase(dbType)) {
-                vo.setChecks(checkPostgreSqlPrivileges(conn, req.getConnUser()));
-            } else if ("sqlserver".equalsIgnoreCase(dbType)) {
-                vo.setChecks(checkSqlServerPrivileges(conn));
-            } else {
-                vo.setChecks(List.of());
-            }
+            DbType type = DbType.of(config.code());
+            vo.setChecks(type == null ? List.of() : switch (type) {
+                case MYSQL -> checkMySqlPrivileges(conn, version, req.getConnUser());
+                case POSTGRESQL -> checkPostgreSqlPrivileges(conn, req.getConnUser());
+                case SQLSERVER -> checkSqlServerPrivileges(conn);
+                default -> List.of();
+            });
             return vo;
         } catch (SQLException e) {
             throw new BusinessException("连接失败：" + rootMessage(e));
         }
     }
-
     /**
      * MySQL 采集账号权限逐项检测（差距分析 模块9）：
      * SHOW GRANTS 解析全局权限 + 关键系统表探测查询，缺失项标注受影响的监控能力与补齐 SQL。
@@ -842,36 +849,25 @@ public class InstanceServiceImpl implements InstanceService {
         }
     }
 
-    private String resolveConnectionDbType(ConnectionTestRequest req) {
-        if (req.getInstanceId() != null) {
-            checkAccessible(req.getInstanceId());
-            return runtimeMetadataService.getRequired(req.getInstanceId()).dbTypeCode();
+    private ConnectionTypeConfig resolveConnectionType(ConnectionTestRequest request) {
+        if (request.getInstanceId() != null) {
+            checkAccessible(request.getInstanceId());
+            InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(request.getInstanceId());
+            return new ConnectionTypeConfig(metadata.dbTypeCode(), metadata.driverClass(), metadata.urlTemplate());
         }
-        if (!StringUtils.hasText(req.getDbType())) {
+        if (request.getDbTypeId() == null) {
             throw new BusinessException("新增实例连接测试必须指定数据库类型");
         }
-        return req.getDbType().trim();
+        DatabaseType type = databaseTypeMapper.selectById(request.getDbTypeId());
+        if (type == null || Boolean.FALSE.equals(type.getEnabled())) {
+            throw new BusinessException("数据库类型不存在或已停用: " + request.getDbTypeId());
+        }
+        return new ConnectionTypeConfig(DatabaseTypeCode.normalize(type.getCode()),
+                type.getDriverClass(), type.getUrlTemplate());
     }
 
-    private String buildJdbcUrl(ConnectionTestRequest req, String dbType) {
-        String host = req.getHost();
-        int port = req.getPort();
-        String type = dbType.toLowerCase();
-        return switch (type) {
-            case "mysql" -> "jdbc:mysql://" + host + ":" + port
-                    + "/?connectTimeout=5000&socketTimeout=8000&useSSL=false"
-                    + "&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai";
-            case "postgresql" -> "jdbc:postgresql://" + host + ":" + port
-                    + "/" + (StringUtils.hasText(req.getDatabaseName()) ? req.getDatabaseName() : "postgres")
-                    + "?connectTimeout=5&socketTimeout=8";
-            case "oracle" -> "jdbc:oracle:thin:@" + host + ":" + port + ":orcl";
-            case "sqlserver" -> "jdbc:sqlserver://" + host + ":" + port
-                    + ";databaseName=" + (StringUtils.hasText(req.getDatabaseName()) ? req.getDatabaseName() : "master")
-                    + ";encrypt=false;loginTimeout=5;socketTimeout=8000;applicationName=monitor-admin";
-            default -> throw new BusinessException("暂不支持的数据库类型：" + dbType);
-        };
+    private record ConnectionTypeConfig(String code, String driverClass, String urlTemplate) {
     }
-
     private String rootMessage(Throwable e) {
         Throwable cur = e;
         while (cur.getCause() != null && cur.getCause() != cur) {
@@ -893,6 +889,7 @@ public class InstanceServiceImpl implements InstanceService {
                     DatabaseType dt = typeMap.get(e.getDbTypeId());
                     CollectTargetVo t = InstanceConverter.toCollectTarget(
                             e,
+                            dt == null ? null : DatabaseTypeCode.normalize(dt.getCode()),
                             resolveTypeName(dt),
                             versionMap.get(e.getDbVersionId()),
                             dt != null ? dt.getDriverClass() : null,
@@ -913,6 +910,7 @@ public class InstanceServiceImpl implements InstanceService {
         InstanceRuntimeMetadata metadata = runtimeMetadataService.getRequired(instanceId);
         CollectTargetVo t = InstanceConverter.toCollectTarget(
                 ins,
+                metadata.dbTypeCode(),
                 metadata.dbTypeLabel(),
                 metadata.dbVersion(),
                 metadata.driverClass(),

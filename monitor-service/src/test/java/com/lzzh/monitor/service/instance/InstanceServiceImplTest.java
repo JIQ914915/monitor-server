@@ -5,10 +5,12 @@ import com.lzzh.monitor.common.exception.BusinessException;
 import com.lzzh.monitor.dao.entity.DatabaseType;
 import com.lzzh.monitor.dao.entity.DatabaseVersion;
 import com.lzzh.monitor.dao.entity.DbInstance;
+import com.lzzh.monitor.dao.entity.SysDictItem;
 import com.lzzh.monitor.dao.mapper.DatabaseTypeMapper;
 import com.lzzh.monitor.dao.mapper.DatabaseVersionMapper;
 import com.lzzh.monitor.dao.mapper.DbInstanceMapper;
 import com.lzzh.monitor.dao.mapper.InstanceDataCleanupMapper;
+import com.lzzh.monitor.dao.mapper.SysDictItemMapper;
 import com.lzzh.monitor.service.datascope.DataScope;
 import com.lzzh.monitor.service.datascope.DataScopeService;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,7 @@ import org.mockito.InOrder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.Serializable;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +39,7 @@ class InstanceServiceImplTest {
     private DatabaseVersionMapper databaseVersionMapper;
     private DataScopeService dataScopeService;
     private InstanceDataCleanupMapper cleanupMapper;
+    private SysDictItemMapper sysDictItemMapper;
     private InstanceRuntimeMetadataService runtimeMetadataService;
     private InstanceServiceImpl service;
 
@@ -46,6 +50,7 @@ class InstanceServiceImplTest {
         databaseVersionMapper = mock(DatabaseVersionMapper.class);
         dataScopeService = mock(DataScopeService.class);
         cleanupMapper = mock(InstanceDataCleanupMapper.class);
+        sysDictItemMapper = mock(SysDictItemMapper.class);
         runtimeMetadataService = mock(InstanceRuntimeMetadataService.class);
         service = new InstanceServiceImpl();
         ReflectionTestUtils.setField(service, "mapper", dbInstanceMapper);
@@ -53,8 +58,12 @@ class InstanceServiceImplTest {
         ReflectionTestUtils.setField(service, "databaseVersionMapper", databaseVersionMapper);
         ReflectionTestUtils.setField(service, "dataScopeService", dataScopeService);
         ReflectionTestUtils.setField(service, "instanceDataCleanupMapper", cleanupMapper);
+        ReflectionTestUtils.setField(service, "sysDictItemMapper", sysDictItemMapper);
         ReflectionTestUtils.setField(service, "runtimeMetadataService", runtimeMetadataService);
         when(dataScopeService.currentScope()).thenReturn(DataScope.all());
+        SysDictItem objectScope = new SysDictItem();
+        objectScope.setItemValue("all");
+        when(sysDictItemMapper.selectList(any())).thenReturn(List.of(objectScope));
     }
 
     @Test

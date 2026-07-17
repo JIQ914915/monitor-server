@@ -1,5 +1,7 @@
 package com.lzzh.monitor.service.sqlserver;
 
+import com.lzzh.monitor.common.enums.DbType;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lzzh.monitor.api.request.SqlServerRestoreDrillPageRequest;
 import com.lzzh.monitor.api.request.SqlServerRestoreDrillRequest;
@@ -40,7 +42,7 @@ public class SqlServerOperationsServiceImpl implements SqlServerOperationsServic
   r.put("ownerName",limit(request.getOwnerName(),128));r.put("notes",redact(limit(request.getNotes(),4000)));r.put("createdBy",null);mapper.insertRestoreDrill(r);
   Long id=r.get("id") instanceof Number n?n.longValue():null;return mapper.selectRestoreDrills(request.getInstanceId(),200,0).stream().filter(x->id==null||number(x.get("id"))==id).map(this::vo).findFirst().orElseThrow(()->new BusinessException("恢复演练保存失败"));
  }
- private void requireInstance(Long id){if(id==null||!dataScopeService.currentScope().allows(id))throw new BusinessException("无权访问该实例");var t=instanceService.getCollectTarget(id);if(t==null)throw new BusinessException("实例不存在");if(!"SQLSERVER".equalsIgnoreCase(t.getDbType()))throw new BusinessException("该功能仅支持 SQL Server 实例");}
+ private void requireInstance(Long id){if(id==null||!dataScopeService.currentScope().allows(id))throw new BusinessException("无权访问该实例");var t=instanceService.getCollectTarget(id);if(t==null)throw new BusinessException("实例不存在");if(DbType.of(t.getDbType()) != DbType.SQLSERVER)throw new BusinessException("该功能仅支持 SQL Server 实例");}
  private void requireDict(String type,String value){if(value==null||dictMapper.selectCount(new LambdaQueryWrapper<SysDictItem>().eq(SysDictItem::getDictType,type).eq(SysDictItem::getItemValue,value).eq(SysDictItem::getStatus,"enabled"))==0)throw new BusinessException("状态字典值不合法或已停用");}
  private SqlServerRestoreDrillVo vo(Map<String,Object>r){SqlServerRestoreDrillVo v=new SqlServerRestoreDrillVo();v.setId(number(r.get("id")));v.setBackupReference(text(r,"backup_reference"));v.setStartedAt(time(r.get("started_at")));v.setFinishedAt(time(r.get("finished_at")));v.setStatus(text(r,"status"));v.setValidationResult(text(r,"validation_result"));v.setRtoSeconds(r.get("rto_seconds")==null?null:number(r.get("rto_seconds")));v.setOwnerName(text(r,"owner_name"));v.setNotes(text(r,"notes"));v.setCreatedAt(time(r.get("created_at")));return v;}
  private static Timestamp ts(OffsetDateTime t){return Timestamp.from(t.toInstant());}private static OffsetDateTime time(Object o){if(o instanceof OffsetDateTime t)return t;if(o instanceof Timestamp t)return t.toInstant().atOffset(java.time.ZoneOffset.UTC);return null;}
