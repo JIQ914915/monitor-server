@@ -9,6 +9,9 @@ class SqlServerVersionResolverTest {
 
     @Test
     void resolvesEveryDeclaredVersionToAnExplicitAdapter() {
+        assertThat(resolver.resolve("2012.0")).isExactlyInstanceOf(SqlServer2012Adapter.class);
+        assertThat(resolver.resolve("2014.0")).isExactlyInstanceOf(SqlServer2014Adapter.class);
+        assertThat(resolver.resolve("2016.0")).isExactlyInstanceOf(SqlServer2016Adapter.class);
         assertThat(resolver.resolve("2017.0")).isExactlyInstanceOf(SqlServer2017Adapter.class);
         assertThat(resolver.resolve("2019.0")).isExactlyInstanceOf(SqlServer2019Adapter.class);
         assertThat(resolver.resolve("2022.0")).isExactlyInstanceOf(SqlServer2022Adapter.class);
@@ -17,18 +20,29 @@ class SqlServerVersionResolverTest {
 
     @Test
     void rejectsUndeclaredVersions() {
-        assertThat(resolver.resolve("2016")).isNull();
+        assertThat(resolver.resolve("2008")).isNull();
         assertThat(resolver.resolve("2030")).isNull();
         assertThat(resolver.resolve(null)).isNull();
     }
 
     @Test
+    void legacyAdaptersUseDmvFallbackWithoutUnsupportedSql() {
+        for (String version : new String[]{"2012", "2014"}) {
+            SqlServerVersionAdapter adapter = resolver.resolve(version);
+            assertThat(adapter.supportsQueryStore()).isFalse();
+            assertThat(adapter.identitySql()).contains("DATEDIFF(second").doesNotContain("DATEDIFF_BIG");
+            assertThat(adapter.queryStoreCapabilitySql()).doesNotContain("sys.database_query_store_options");
+            assertThat(adapter.queryStoreTopSql()).doesNotContain("sys.query_store_");
+            assertThat(adapter.dmvTopSql()).contains("sys.dm_exec_query_stats");
+        }
+        assertThat(resolver.resolve("2016").supportsQueryStore()).isTrue();
+    }
+
+    @Test
     void adaptersExposeReadOnlyContractQueries() {
-        for (String version : new String[]{"2017", "2019", "2022", "2025"}) {
+        for (String version : new String[]{"2012", "2014", "2016", "2017", "2019", "2022", "2025"}) {
             SqlServerVersionAdapter adapter = resolver.resolve(version);
             assertThat(adapter.identitySql()).contains("SERVERPROPERTY", "sys.dm_os_sys_info");
-            assertThat(adapter.queryStoreCapabilitySql())
-                    .contains("sys.database_query_store_options");
             assertThat(adapter.performanceCountersSql())
                     .contains("sys.dm_os_performance_counters", "Memory Grants Pending");
             assertThat(adapter.runtimeSql())
@@ -36,7 +50,6 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.waitStatsSql()).contains("sys.dm_os_wait_stats", "wait_category");
             assertThat(adapter.storageSql())
                     .contains("sys.dm_io_virtual_file_stats", "sys.dm_db_log_space_usage");
-            assertThat(adapter.queryStoreTopSql()).contains("sys.query_store_runtime_stats");
             assertThat(adapter.dmvTopSql()).contains("sys.dm_exec_query_stats");
             assertThat(adapter.deadlockEventsSql()).contains("system_health", "xml_deadlock_report");
             assertThat(adapter.blockingChainSql()).contains("blocking_session_id");

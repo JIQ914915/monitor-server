@@ -9,6 +9,9 @@ public class SqlServerVersionResolver {
     private final VersionResolver<SqlServerVersionAdapter> delegate = new VersionResolver<>();
 
     public SqlServerVersionResolver() {
+        delegate.register(new SqlServer2012Adapter());
+        delegate.register(new SqlServer2014Adapter());
+        delegate.register(new SqlServer2016Adapter());
         delegate.register(new SqlServer2017Adapter());
         delegate.register(new SqlServer2019Adapter());
         delegate.register(new SqlServer2022Adapter());
@@ -16,7 +19,7 @@ public class SqlServerVersionResolver {
     }
 
     public SqlServerVersionAdapter resolve(String version) {
-        if (version == null || !version.matches("^(2017|2019|2022|2025)(\\..*)?$")) {
+        if (version == null || !version.matches("^(2012|2014|2016|2017|2019|2022|2025)(\\..*)?$")) {
             return null;
         }
         return delegate.resolve(version);

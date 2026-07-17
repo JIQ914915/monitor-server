@@ -26,6 +26,7 @@ public class SqlServerCapabilityProbe {
         try (Connection conn = open(target);
              Statement st = conn.createStatement()) {
             st.setQueryTimeout(5);
+            int major = 0;
             try (ResultSet rs = st.executeQuery("""
                     SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int) AS major_version,
                            CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128)) AS product_version,
@@ -34,7 +35,7 @@ public class SqlServerCapabilityProbe {
                            CAST(SERVERPROPERTY('IsHadrEnabled') AS int) AS hadr_enabled
                     """)) {
                 if (rs.next()) {
-                    int major = rs.getInt("major_version");
+                    major = rs.getInt("major_version");
                     String version = rs.getString("product_version");
                     result.add(versionCapability(major, version, configuredVersion));
                     result.add(InstanceCapabilityVo.of("edition", "Edition 能力（" + rs.getString("edition") + "）",
@@ -53,7 +54,7 @@ public class SqlServerCapabilityProbe {
             result.add(probe(conn, "backup_history", "备份历史",
                     "SELECT TOP (1) backup_set_id FROM msdb.dbo.backupset",
                     "无法读取 msdb 备份历史，备份覆盖与恢复准备度受限"));
-            result.add(queryStore(conn));
+            result.add(queryStore(conn, major));
         } catch (Exception e) {
             result.add(InstanceCapabilityVo.of("live_probe", "实时能力探测",
                     permissionDenied(e) ? PERMISSION_DENIED : COLLECT_ERROR,
@@ -62,14 +63,14 @@ public class SqlServerCapabilityProbe {
         return result;
     }
 
-    private InstanceCapabilityVo versionCapability(int major, String actual, String configured) {
+    InstanceCapabilityVo versionCapability(int major, String actual, String configured) {
         String label = "版本支持状态（" + (actual == null ? configured : actual) + "）";
         return switch (major) {
-            case 14, 15, 16, 17 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE, null);
-            case 13 -> InstanceCapabilityVo.of("version_support", label, VERSION_NOT_SUPPORT,
-                    "SQL Server 2016 仅在客户具备 ESU 且完成专项验证后条件兼容");
+            case 11, 12 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE,
+                    "已启用兼容监控；该版本不提供 Query Store，Top SQL 自动降级为 DMV 累计快照");
+            case 13, 14, 15, 16, 17 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE, null);
             default -> InstanceCapabilityVo.of("version_support", label, VERSION_NOT_SUPPORT,
-                    "平台正式支持 SQL Server 2017、2019、2022、2025");
+                    "平台支持 SQL Server 2012、2014、2016、2017、2019、2022、2025");
         };
     }
 
@@ -87,7 +88,11 @@ public class SqlServerCapabilityProbe {
         }
     }
 
-    private InstanceCapabilityVo queryStore(Connection conn) {
+    private InstanceCapabilityVo queryStore(Connection conn, int major) {
+        if (major > 0 && major < 13) {
+            return InstanceCapabilityVo.of("query_store", "Query Store", VERSION_NOT_SUPPORT,
+                    "SQL Server 2012/2014 不提供 Query Store，Top SQL 已自动降级为 DMV 累计快照");
+        }
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(5);
             try (ResultSet rs = st.executeQuery(

@@ -819,11 +819,13 @@ public class InstanceServiceImpl implements InstanceService {
                 probeSelect(conn, "SELECT TOP (1) backup_set_id FROM msdb.dbo.backupset"),
                 "备份覆盖、新鲜度与恢复准备度",
                 "USE msdb; GRANT SELECT ON dbo.backupset TO <monitor_user>;"));
-        checks.add(ConnectionTestVo.PermissionCheck.of(
-                "Query Store 目录读取（可选）",
-                probeSelect(conn, "SELECT TOP (1) actual_state FROM sys.database_query_store_options"),
-                "Top SQL 历史、计划变化、性能回退与 SQL 等待",
-                "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
+        if (major == 0 || major >= 13) {
+            checks.add(ConnectionTestVo.PermissionCheck.of(
+                    "Query Store 目录读取（可选）",
+                    probeSelect(conn, "SELECT TOP (1) actual_state FROM sys.database_query_store_options"),
+                    "Top SQL 历史、计划变化、性能回退与 SQL 等待",
+                    "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
+        }
         checks.add(ConnectionTestVo.PermissionCheck.of(
                 "Always On 状态读取（可选）",
                 probeSelect(conn, "SELECT TOP (1) replica_id FROM sys.dm_hadr_availability_replica_states"),

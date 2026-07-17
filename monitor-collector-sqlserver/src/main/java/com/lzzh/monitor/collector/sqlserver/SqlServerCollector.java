@@ -25,7 +25,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /** SQL Server 采集器：按版本、频率和采集项隔离执行。 */
-@CollectorFor(dbType = DbType.SQLSERVER, versions = {"2017", "2019", "2022", "2025"})
+@CollectorFor(dbType = DbType.SQLSERVER, versions = {"2012", "2014", "2016", "2017", "2019", "2022", "2025"})
 public class SqlServerCollector extends AbstractDatabaseCollector {
     private static final Logger log = LoggerFactory.getLogger(SqlServerCollector.class);
 

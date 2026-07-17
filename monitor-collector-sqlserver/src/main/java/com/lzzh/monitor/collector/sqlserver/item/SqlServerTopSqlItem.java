@@ -21,6 +21,11 @@ public class SqlServerTopSqlItem implements SqlServerMetricItem {
     public void collect(Connection conn, CollectRequest request, SqlServerVersionAdapter adapter,
                         SqlServerMetricSink sink) throws Exception {
         long ts = System.currentTimeMillis();
+        if (!adapter.supportsQueryStore()) {
+            sink.addText("sqlserver.query_store.collect_state", "dmv_fallback", ts);
+            collectRows(conn, adapter.dmvTopSql(), sink, ts);
+            return;
+        }
         try {
             collectRows(conn, adapter.queryStoreTopSql(), sink, ts);
             sink.addText("sqlserver.query_store.collect_state", "available", ts);

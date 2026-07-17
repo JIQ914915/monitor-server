@@ -11,7 +11,7 @@
 
     <artifactId>monitor-collector-sqlserver</artifactId>
     <name>monitor-collector-sqlserver</name>
-    <description>SQL Server 2017/2019/2022/2025 监控采集实现</description>
+    <description>SQL Server 2012/2014/2016/2017/2019/2022/2025 监控采集实现</description>
 
     <dependencies>
         <dependency>

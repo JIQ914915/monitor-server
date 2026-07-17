@@ -28,6 +28,7 @@ public class SqlServerCapabilityItem implements SqlServerMetricItem {
     @Override
     public void collect(Connection conn, CollectRequest request,
                         SqlServerVersionAdapter adapter, SqlServerMetricSink sink) throws Exception {
+        if (!adapter.supportsQueryStore()) return;
         long ts = System.currentTimeMillis();
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(DEFAULT_QUERY_TIMEOUT_SECONDS);
