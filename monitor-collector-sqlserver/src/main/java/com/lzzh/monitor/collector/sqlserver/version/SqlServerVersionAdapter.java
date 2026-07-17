@@ -5,6 +5,7 @@ import com.lzzh.monitor.collector.spi.version.VersionAdapter;
 /** SQL Server 版本适配器：所有采集 SQL 必须从明确版本适配器取得。 */
 public interface SqlServerVersionAdapter extends VersionAdapter {
     default boolean supportsQueryStore() { return true; }
+    default boolean supportsAlwaysOn() { return true; }
     String identitySql();
     String queryStoreCapabilitySql();
     String performanceCountersSql();

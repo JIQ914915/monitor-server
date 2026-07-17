@@ -36,21 +36,23 @@ public class SqlServerCapabilityProbe {
                     """)) {
                 if (rs.next()) {
                     major = rs.getInt("major_version");
+                    boolean majorMissing = rs.wasNull();
                     String version = rs.getString("product_version");
+                    if (majorMissing || major == 0) major = majorFromProductVersion(version);
                     result.add(versionCapability(major, version, configuredVersion));
                     result.add(InstanceCapabilityVo.of("edition", "Edition 能力（" + rs.getString("edition") + "）",
                             AVAILABLE, "EngineEdition=" + rs.getInt("engine_edition")));
-                    result.add(InstanceCapabilityVo.of("always_on", "Always On 可用组",
-                            rs.getInt("hadr_enabled") == 1 ? AVAILABLE : LIMITED,
-                            rs.getInt("hadr_enabled") == 1 ? null : "当前实例未启用 Always On；不会展示可用组告警"));
+                    result.add(alwaysOnCapability(major, rs.getInt("hadr_enabled")));
                 }
             }
             result.add(probe(conn, "server_performance_state", "服务器性能 DMV",
                     "SELECT TOP (1) scheduler_id FROM sys.dm_os_schedulers",
                     "缺少服务器性能状态权限，CPU、等待、内存、I/O 与 HA 诊断受限"));
+            String databaseStateSql = major > 0 && major < 11
+                    ? "SELECT TOP (1) file_id FROM sys.dm_db_file_space_usage"
+                    : "SELECT TOP (1) database_id FROM sys.dm_db_log_space_usage";
             result.add(probe(conn, "database_performance_state", "数据库性能 DMV",
-                    "SELECT TOP (1) database_id FROM sys.dm_db_log_space_usage",
-                    "缺少数据库性能状态权限，日志与数据库空间诊断受限"));
+                    databaseStateSql, "缺少数据库性能状态权限，日志与数据库空间诊断受限"));
             result.add(probe(conn, "backup_history", "备份历史",
                     "SELECT TOP (1) backup_set_id FROM msdb.dbo.backupset",
                     "无法读取 msdb 备份历史，备份覆盖与恢复准备度受限"));
@@ -66,12 +68,34 @@ public class SqlServerCapabilityProbe {
     InstanceCapabilityVo versionCapability(int major, String actual, String configured) {
         String label = "版本支持状态（" + (actual == null ? configured : actual) + "）";
         return switch (major) {
+            case 10 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE,
+                    "已启用兼容监控；该版本不提供 Query Store 和 Always On，Top SQL 自动降级为 DMV 累计快照");
             case 11, 12 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE,
                     "已启用兼容监控；该版本不提供 Query Store，Top SQL 自动降级为 DMV 累计快照");
             case 13, 14, 15, 16, 17 -> InstanceCapabilityVo.of("version_support", label, AVAILABLE, null);
             default -> InstanceCapabilityVo.of("version_support", label, VERSION_NOT_SUPPORT,
-                    "平台支持 SQL Server 2012、2014、2016、2017、2019、2022、2025");
+                    "平台支持 SQL Server 2008 R2、2012、2014、2016、2017、2019、2022、2025");
         };
+    }
+
+    private InstanceCapabilityVo alwaysOnCapability(int major, int enabled) {
+        if (major > 0 && major < 11) {
+            return InstanceCapabilityVo.of("always_on", "Always On 可用组", VERSION_NOT_SUPPORT,
+                    "SQL Server 2008 R2 不提供 Always On 可用组，不评估相关告警和场景");
+        }
+        return InstanceCapabilityVo.of("always_on", "Always On 可用组",
+                enabled == 1 ? AVAILABLE : LIMITED,
+                enabled == 1 ? null : "当前实例未启用 Always On；不会展示可用组告警");
+    }
+
+    static int majorFromProductVersion(String version) {
+        if (version == null || version.isBlank()) return 0;
+        try {
+            int separator = version.indexOf('.');
+            return Integer.parseInt(separator < 0 ? version : version.substring(0, separator));
+        } catch (RuntimeException ignored) {
+            return 0;
+        }
     }
 
     private InstanceCapabilityVo probe(Connection conn, String code, String name,
@@ -91,7 +115,7 @@ public class SqlServerCapabilityProbe {
     private InstanceCapabilityVo queryStore(Connection conn, int major) {
         if (major > 0 && major < 13) {
             return InstanceCapabilityVo.of("query_store", "Query Store", VERSION_NOT_SUPPORT,
-                    "SQL Server 2012/2014 不提供 Query Store，Top SQL 已自动降级为 DMV 累计快照");
+                    "SQL Server 2008 R2/2012/2014 不提供 Query Store，Top SQL 已自动降级为 DMV 累计快照");
         }
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(5);

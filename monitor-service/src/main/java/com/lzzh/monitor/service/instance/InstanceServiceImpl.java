@@ -797,8 +797,14 @@ public class InstanceServiceImpl implements InstanceService {
         List<ConnectionTestVo.PermissionCheck> checks = new ArrayList<>();
         int major = 0;
         try (Statement st = conn.createStatement();
-             ResultSet rs = st.executeQuery("SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int)")) {
-            if (rs.next()) major = rs.getInt(1);
+             ResultSet rs = st.executeQuery("SELECT CAST(SERVERPROPERTY('ProductMajorVersion') AS int), "
+                     + "CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(128))")) {
+            if (rs.next()) {
+                major = rs.getInt(1);
+                if (rs.wasNull() || major == 0) {
+                    major = SqlServerCapabilityProbe.majorFromProductVersion(rs.getString(2));
+                }
+            }
         } catch (SQLException e) {
             log.warn("SQL Server 主版本探测失败: {}", e.getMessage());
         }
@@ -809,10 +815,13 @@ public class InstanceServiceImpl implements InstanceService {
                 probeSelect(conn, "SELECT TOP (1) scheduler_id FROM sys.dm_os_schedulers"),
                 "CPU 调度、内存、等待、会话、文件 I/O 与 Always On 性能监控",
                 "GRANT " + serverPermission + " TO <monitor_login>;"));
+        String databaseStateSql = major > 0 && major < 11
+                ? "SELECT TOP (1) file_id FROM sys.dm_db_file_space_usage"
+                : "SELECT TOP (1) used_log_space_in_percent FROM sys.dm_db_log_space_usage";
         checks.add(ConnectionTestVo.PermissionCheck.of(
                 databasePermission + " 权限",
-                probeSelect(conn, "SELECT TOP (1) used_log_space_in_percent FROM sys.dm_db_log_space_usage"),
-                "事务日志、数据库空间与 Query Store 诊断",
+                probeSelect(conn, databaseStateSql),
+                "事务日志与数据库空间诊断",
                 "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
         checks.add(ConnectionTestVo.PermissionCheck.of(
                 "msdb 备份历史读取",
@@ -826,11 +835,13 @@ public class InstanceServiceImpl implements InstanceService {
                     "Top SQL 历史、计划变化、性能回退与 SQL 等待",
                     "USE <database>; GRANT " + databasePermission + " TO <monitor_user>;"));
         }
-        checks.add(ConnectionTestVo.PermissionCheck.of(
-                "Always On 状态读取（可选）",
-                probeSelect(conn, "SELECT TOP (1) replica_id FROM sys.dm_hadr_availability_replica_states"),
-                "可用组副本连接、同步健康、发送与重做队列",
-                "GRANT " + serverPermission + " TO <monitor_login>;"));
+        if (major == 0 || major >= 11) {
+            checks.add(ConnectionTestVo.PermissionCheck.of(
+                    "Always On 状态读取（可选）",
+                    probeSelect(conn, "SELECT TOP (1) replica_id FROM sys.dm_hadr_availability_replica_states"),
+                    "可用组副本连接、同步健康、发送与重做队列",
+                    "GRANT " + serverPermission + " TO <monitor_login>;"));
+        }
         return checks;
     }
 

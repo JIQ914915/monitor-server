@@ -10,7 +10,7 @@ import java.sql.*;
 public class SqlServerAlwaysOnItem implements SqlServerMetricItem {
     @Override public String code(){return "always_on";}
     @Override public void collect(Connection conn,CollectRequest request,SqlServerVersionAdapter adapter,
-                                  SqlServerMetricSink sink)throws Exception{
+                                  SqlServerMetricSink sink)throws Exception{if(!adapter.supportsAlwaysOn())return;
         if(!enabled(conn))return;long ts=System.currentTimeMillis();int disconnected=0,unhealthy=0,suspended=0;
         double sendKb=0,redoKb=0,sendSec=0,redoSec=0;
         try(Statement st=conn.createStatement()){st.setQueryTimeout(10);
