@@ -19,6 +19,14 @@ class SqlServerCapabilityProbeTest {
     }
 
     @Test
+    void distinguishesUnsupportedDisabledAndEditionCapabilities() {
+        assertThat(probe.alwaysOnCapability(10, 0).getStatus()).isEqualTo("version_not_support");
+        assertThat(probe.alwaysOnCapability(13, 0).getStatus()).isEqualTo("not_enabled");
+        assertThat(probe.alwaysOnCapability(13, 1).getStatus()).isEqualTo("available");
+        assertThat(probe.agentCapability("Express Edition", 4).getStatus()).isEqualTo("edition_not_support");
+        assertThat(probe.agentCapability("Standard Edition", 2).getStatus()).isEqualTo("available");
+    }
+    @Test
     void explainsLegacyFeatureFallback() {
         assertThat(probe.versionCapability(10, "10.50", null).getMessage())
                 .contains("不提供 Query Store", "Always On", "DMV");

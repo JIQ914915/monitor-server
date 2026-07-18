@@ -30,19 +30,45 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
     public String performanceCountersSql() {
         return """
                 SELECT
-                  MAX(CASE WHEN counter_name='User Connections' THEN cntr_value END) AS user_connections,
-                  MAX(CASE WHEN counter_name='Batch Requests/sec' THEN cntr_value END) AS batch_requests_total,
-                  MAX(CASE WHEN counter_name='SQL Compilations/sec' THEN cntr_value END) AS compilations_total,
-                  MAX(CASE WHEN counter_name='SQL Re-Compilations/sec' THEN cntr_value END) AS recompilations_total,
-                  MAX(CASE WHEN counter_name='Memory Grants Pending' THEN cntr_value END) AS memory_grants_pending,
-                  MAX(CASE WHEN counter_name='Memory Grants Outstanding' THEN cntr_value END) AS memory_grants_outstanding,
-                  MAX(CASE WHEN counter_name='Total Server Memory (KB)' THEN cntr_value END) AS total_server_memory_kb,
-                  MAX(CASE WHEN counter_name='Target Server Memory (KB)' THEN cntr_value END) AS target_server_memory_kb,
-                  MAX(CASE WHEN counter_name='Page life expectancy' THEN cntr_value END) AS page_life_expectancy,
-                  MAX(CASE WHEN counter_name='Lazy writes/sec' THEN cntr_value END) AS lazy_writes_total,
-                  MAX(CASE WHEN counter_name='Page reads/sec' THEN cntr_value END) AS page_reads_total,
-                  MAX(CASE WHEN counter_name='Page writes/sec' THEN cntr_value END) AS page_writes_total,
-                  MAX(CASE WHEN counter_name='Number of Deadlocks/sec' THEN cntr_value END) AS deadlocks_total
+                  MAX(CASE WHEN object_name LIKE '%:General Statistics'
+                            AND counter_name='User Connections' AND cntr_type=65792
+                           THEN cntr_value END) AS user_connections,
+                  MAX(CASE WHEN object_name LIKE '%:SQL Statistics'
+                            AND counter_name='Batch Requests/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS batch_requests_total,
+                  MAX(CASE WHEN object_name LIKE '%:SQL Statistics'
+                            AND counter_name='SQL Compilations/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS compilations_total,
+                  MAX(CASE WHEN object_name LIKE '%:SQL Statistics'
+                            AND counter_name='SQL Re-Compilations/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS recompilations_total,
+                  MAX(CASE WHEN object_name LIKE '%:Memory Manager'
+                            AND counter_name='Memory Grants Pending' AND cntr_type=65792
+                           THEN cntr_value END) AS memory_grants_pending,
+                  MAX(CASE WHEN object_name LIKE '%:Memory Manager'
+                            AND counter_name='Memory Grants Outstanding' AND cntr_type=65792
+                           THEN cntr_value END) AS memory_grants_outstanding,
+                  MAX(CASE WHEN object_name LIKE '%:Memory Manager'
+                            AND counter_name='Total Server Memory (KB)' AND cntr_type=65792
+                           THEN cntr_value END) AS total_server_memory_kb,
+                  MAX(CASE WHEN object_name LIKE '%:Memory Manager'
+                            AND counter_name='Target Server Memory (KB)' AND cntr_type=65792
+                           THEN cntr_value END) AS target_server_memory_kb,
+                  MAX(CASE WHEN object_name LIKE '%:Buffer Manager'
+                            AND counter_name='Page life expectancy' AND cntr_type=65792
+                           THEN cntr_value END) AS page_life_expectancy,
+                  MAX(CASE WHEN object_name LIKE '%:Buffer Manager'
+                            AND counter_name='Lazy writes/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS lazy_writes_total,
+                  MAX(CASE WHEN object_name LIKE '%:Buffer Manager'
+                            AND counter_name='Page reads/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS page_reads_total,
+                  MAX(CASE WHEN object_name LIKE '%:Buffer Manager'
+                            AND counter_name='Page writes/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS page_writes_total,
+                  MAX(CASE WHEN object_name LIKE '%:Locks' AND instance_name='_Total'
+                            AND counter_name='Number of Deadlocks/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS deadlocks_total
                 FROM sys.dm_os_performance_counters
                 WHERE instance_name IN ('', '_Total')
                 """;
@@ -72,30 +98,34 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
     @Override
     public String waitStatsSql() {
         return """
-                SELECT wait_category, SUM(wait_time_ms) AS wait_time_ms,
-                       SUM(signal_wait_time_ms) AS signal_wait_time_ms,
-                       SUM(waiting_tasks_count) AS waiting_tasks_count
-                FROM (
-                  SELECT CASE
-                    WHEN wait_type LIKE 'LCK[_]%' THEN 'lock'
-                    WHEN wait_type LIKE 'PAGEIOLATCH[_]%' OR wait_type LIKE 'IO_COMPLETION%' THEN 'io'
-                    WHEN wait_type LIKE 'WRITELOG%' THEN 'log'
-                    WHEN wait_type LIKE 'RESOURCE_SEMAPHORE%' THEN 'memory'
-                    WHEN wait_type LIKE 'CXPACKET%' OR wait_type LIKE 'CXCONSUMER%' THEN 'parallel'
-                    WHEN wait_type LIKE 'HADR[_]%' OR wait_type LIKE 'REDO[_]%' THEN 'ha'
-                    WHEN wait_type LIKE 'ASYNC_NETWORK_IO%' THEN 'network'
-                    WHEN wait_type LIKE 'SOS_SCHEDULER_YIELD%' THEN 'cpu'
-                    ELSE 'other' END AS wait_category,
-                    wait_time_ms, signal_wait_time_ms, waiting_tasks_count
+                SELECT wait_type, wait_time_ms, signal_wait_time_ms, waiting_tasks_count
                   FROM sys.dm_os_wait_stats
-                  WHERE wait_type NOT IN ('SLEEP_TASK','SLEEP_SYSTEMTASK','LAZYWRITER_SLEEP',
-                    'SQLTRACE_BUFFER_FLUSH','XE_TIMER_EVENT','XE_DISPATCHER_WAIT',
-                    'REQUEST_FOR_DEADLOCK_SEARCH','BROKER_TO_FLUSH','BROKER_TASK_STOP')
-                ) w
-                GROUP BY wait_category
+                 WHERE wait_type NOT IN ('SLEEP_TASK','SLEEP_SYSTEMTASK','LAZYWRITER_SLEEP',
+                   'SQLTRACE_BUFFER_FLUSH','XE_TIMER_EVENT','XE_DISPATCHER_WAIT',
+                   'REQUEST_FOR_DEADLOCK_SEARCH','BROKER_TO_FLUSH','BROKER_TASK_STOP')
                 """;
     }
 
+    @Override
+    public String databaseHealthSql() {
+        return """
+                SELECT database_id, name AS database_name, state, state_desc, user_access, user_access_desc,
+                       is_read_only, recovery_model, recovery_model_desc
+                  FROM sys.databases
+                 WHERE database_id > 4 AND source_database_id IS NULL
+                 ORDER BY name
+                """;
+    }
+
+    @Override
+    public String suspectPagesSql() {
+        return """
+                SELECT database_id, DB_NAME(database_id) AS database_name, file_id, page_id, event_type, error_count, last_update_date
+                  FROM msdb.dbo.suspect_pages
+                 WHERE event_type IN (1,2,3,4)
+                 ORDER BY last_update_date DESC
+                """;
+    }
     @Override
     public String storageSql() {
         return """
@@ -108,7 +138,7 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                   SUM(v.num_of_writes) AS io_writes,
                   SUM(v.io_stall_read_ms) AS io_stall_read_ms,
                   SUM(v.io_stall_write_ms) AS io_stall_write_ms,
-                  MAX(CASE WHEN d.log_reuse_wait_desc='NOTHING' THEN 0 ELSE 1 END) AS log_reuse_blocked
+                  MAX(d.log_reuse_wait_desc) AS log_reuse_wait_desc
                 FROM sys.database_files f
                 LEFT JOIN sys.dm_io_virtual_file_stats(DB_ID(),NULL) v ON v.file_id=f.file_id
                 CROSS JOIN sys.dm_db_log_space_usage ls
@@ -219,8 +249,8 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
     @Override
     public String alwaysOnHealthSql() {
         return """
-                SELECT ag.name AS group_name,ar.replica_server_name,DB_NAME(drs.database_id) AS database_name,
-                       ars.role_desc,ars.connected_state_desc,ars.operational_state_desc,
+                SELECT ag.name AS group_name,ar.replica_server_name,adc.database_name,
+                       drs.is_local,ars.role_desc,ars.connected_state_desc,ars.operational_state_desc,
                        drs.synchronization_state_desc,drs.synchronization_health_desc,
                        drs.is_suspended,drs.suspend_reason_desc,drs.log_send_queue_size,
                        drs.log_send_rate,drs.redo_queue_size,drs.redo_rate,
@@ -229,9 +259,11 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                   FROM sys.dm_hadr_database_replica_states drs
                   JOIN sys.availability_replicas ar ON ar.replica_id=drs.replica_id
                   JOIN sys.availability_groups ag ON ag.group_id=ar.group_id
+                  JOIN sys.availability_databases_cluster adc ON adc.group_id=ag.group_id
+                       AND adc.group_database_id=drs.group_database_id
                   LEFT JOIN sys.dm_hadr_availability_replica_states ars ON ars.replica_id=ar.replica_id
                          AND ars.group_id=ag.group_id
-                 WHERE drs.is_local=1
+                ORDER BY ag.name, ar.replica_server_name, database_name
                 """;
     }
 

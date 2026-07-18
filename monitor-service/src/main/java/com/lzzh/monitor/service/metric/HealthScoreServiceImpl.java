@@ -115,7 +115,8 @@ public class HealthScoreServiceImpl implements HealthScoreService {
             "sqlserver.memory.grants_pending","sqlserver.blocked_sessions","sqlserver.deadlocks_per_sec",
             "sqlserver.storage.log_used_percent","sqlserver.io.read_latency_ms","sqlserver.io.write_latency_ms",
             "sqlserver.ag.disconnected_replicas","sqlserver.ag.unhealthy_databases",
-            "sqlserver.ag.suspended_databases","sqlserver.ag.max_send_seconds","sqlserver.ag.max_redo_seconds");
+            "sqlserver.ag.suspended_databases","sqlserver.ag.max_send_seconds","sqlserver.ag.max_redo_seconds",
+            "sqlserver.database.abnormal_count","sqlserver.integrity.suspect_page_count");
     private static final Set<String> SQLSERVER_METRICS_1H = Set.of(
             "sqlserver.backup.max_full_age_hours","sqlserver.backup.uncovered_database_count",
             "sqlserver.backup.log_missing_database_count");
@@ -223,7 +224,8 @@ public class HealthScoreServiceImpl implements HealthScoreService {
         int availability=100,performance=100,stability=100,capacity=100;
         Double available=m.get("sqlserver.availability");
         if(available!=null&&available<1){availability-=80;out.add(deduct("availability","SQL Server 实例当前无法连接",80,"0"));}
-        Double disconnected=m.get("sqlserver.ag.disconnected_replicas");
+        Double abnormalDatabases=m.get("sqlserver.database.abnormal_count");
+        if(abnormalDatabases!=null&&abnormalDatabases>0){availability-=50;out.add(deduct("availability","存在状态异常的用户数据库",50,fmt0(abnormalDatabases)));}        Double disconnected=m.get("sqlserver.ag.disconnected_replicas");
         if(disconnected!=null&&disconnected>0){availability-=30;out.add(deduct("availability","Always On 存在断连副本，请检查端点、网络和集群状态",30,fmt0(disconnected)));}
         Double runnable=m.get("sqlserver.scheduler.runnable_tasks");
         if(runnable!=null&&runnable>=4){performance-=25;out.add(deduct("performance","CPU 调度持续排队，请关联主机 CPU、Top SQL 和等待",25,fmt0(runnable)));}
@@ -235,7 +237,8 @@ public class HealthScoreServiceImpl implements HealthScoreService {
         if(blocked!=null&&blocked>0){stability-=20;out.add(deduct("stability","存在被阻塞会话，可下钻查看阻塞链",20,fmt0(blocked)));}
         Double deadlocks=m.get("sqlserver.deadlocks_per_sec");
         if(deadlocks!=null&&deadlocks>0){stability-=25;out.add(deduct("stability","检测到死锁，需复盘脱敏死锁图和加锁顺序",25,fmt1(deadlocks)));}
-        Double unhealthy=m.get("sqlserver.ag.unhealthy_databases");
+        Double suspectPages=m.get("sqlserver.integrity.suspect_page_count");
+        if(suspectPages!=null&&suspectPages>0){stability-=50;out.add(deduct("stability","发现疑似损坏页线索，需人工核对错误日志和一致性检查结果",50,fmt0(suspectPages)));}        Double unhealthy=m.get("sqlserver.ag.unhealthy_databases");
         if(unhealthy!=null&&unhealthy>0){stability-=25;out.add(deduct("stability","Always On 数据库同步不健康",25,fmt0(unhealthy)));}
         Double logUsage=m.get("sqlserver.storage.log_used_percent");
         if(logUsage!=null&&logUsage>=85){capacity-=30;out.add(deduct("capacity","事务日志使用率偏高，需结合复用等待、日志备份和长事务判断",30,fmt1(logUsage)+"%"));}

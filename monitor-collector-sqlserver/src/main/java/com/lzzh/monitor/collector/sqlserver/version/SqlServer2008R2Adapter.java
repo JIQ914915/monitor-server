@@ -30,7 +30,7 @@ public class SqlServer2008R2Adapter extends SqlServer2012Adapter {
                   SUM(v.num_of_writes) AS io_writes,
                   SUM(v.io_stall_read_ms) AS io_stall_read_ms,
                   SUM(v.io_stall_write_ms) AS io_stall_write_ms,
-                  MAX(CASE WHEN d.log_reuse_wait_desc='NOTHING' THEN 0 ELSE 1 END) AS log_reuse_blocked
+                  MAX(d.log_reuse_wait_desc) AS log_reuse_wait_desc
                 FROM sys.database_files f
                 LEFT JOIN sys.dm_io_virtual_file_stats(DB_ID(),NULL) v ON v.file_id=f.file_id
                 CROSS JOIN (

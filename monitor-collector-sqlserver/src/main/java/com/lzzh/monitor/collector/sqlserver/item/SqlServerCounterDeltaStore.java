@@ -22,6 +22,14 @@ public class SqlServerCounterDeltaStore {
                 : OptionalDouble.of((value - previous.value) / seconds);
     }
 
+    public OptionalDouble delta(Long instanceId, String metric, double value, long timestampMillis) {
+        String key = instanceId + "|" + metric;
+        Snapshot previous = snapshots.put(key, new Snapshot(value, timestampMillis));
+        if (previous == null || timestampMillis <= previous.timestampMillis || value < previous.value) {
+            return OptionalDouble.empty();
+        }
+        return OptionalDouble.of(value - previous.value);
+    }
     public void clear(Long instanceId) {
         String prefix = instanceId + "|";
         snapshots.keySet().removeIf(key -> key.startsWith(prefix));

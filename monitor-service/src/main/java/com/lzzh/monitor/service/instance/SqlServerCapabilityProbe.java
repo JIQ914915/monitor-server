@@ -19,6 +19,8 @@ public class SqlServerCapabilityProbe {
     private static final String LIMITED = "limited";
     private static final String PERMISSION_DENIED = "permission_denied";
     private static final String VERSION_NOT_SUPPORT = "version_not_support";
+    private static final String EDITION_NOT_SUPPORT = "edition_not_support";
+    private static final String NOT_ENABLED = "not_enabled";
     private static final String COLLECT_ERROR = "collect_error";
 
     public List<InstanceCapabilityVo> probe(CollectTargetVo target, String configuredVersion) {
@@ -42,10 +44,16 @@ public class SqlServerCapabilityProbe {
                     result.add(versionCapability(major, version, configuredVersion));
                     result.add(InstanceCapabilityVo.of("edition", "Edition 能力（" + rs.getString("edition") + "）",
                             AVAILABLE, "EngineEdition=" + rs.getInt("engine_edition")));
+                    result.add(agentCapability(rs.getString("edition"), rs.getInt("engine_edition")));
                     result.add(alwaysOnCapability(major, rs.getInt("hadr_enabled")));
                 }
             }
-            result.add(probe(conn, "server_performance_state", "服务器性能 DMV",
+            result.add(probe(conn, "database_catalog", "数据库状态目录",
+                    "SELECT TOP (1) database_id FROM sys.databases WHERE database_id > 4",
+                    "无法读取用户数据库状态，数据库级可用性结论受限"));
+            result.add(probe(conn, "suspect_pages", "疑似损坏页线索",
+                    "SELECT TOP (1) database_id FROM msdb.dbo.suspect_pages",
+                    "无法读取 msdb suspect_pages，页面损坏线索不可用"));            result.add(probe(conn, "server_performance_state", "服务器性能 DMV",
                     "SELECT TOP (1) scheduler_id FROM sys.dm_os_schedulers",
                     "缺少服务器性能状态权限，CPU、等待、内存、I/O 与 HA 诊断受限"));
             String databaseStateSql = major > 0 && major < 11
@@ -78,16 +86,23 @@ public class SqlServerCapabilityProbe {
         };
     }
 
-    private InstanceCapabilityVo alwaysOnCapability(int major, int enabled) {
+    InstanceCapabilityVo alwaysOnCapability(int major, int enabled) {
         if (major > 0 && major < 11) {
             return InstanceCapabilityVo.of("always_on", "Always On 可用组", VERSION_NOT_SUPPORT,
                     "SQL Server 2008 R2 不提供 Always On 可用组，不评估相关告警和场景");
         }
         return InstanceCapabilityVo.of("always_on", "Always On 可用组",
-                enabled == 1 ? AVAILABLE : LIMITED,
+                enabled == 1 ? AVAILABLE : NOT_ENABLED,
                 enabled == 1 ? null : "当前实例未启用 Always On；不会展示可用组告警");
     }
 
+    InstanceCapabilityVo agentCapability(String edition, int engineEdition) {
+        if (engineEdition == 4 || (edition != null && edition.toLowerCase().contains("express"))) {
+            return InstanceCapabilityVo.of("sql_agent", "SQL Server Agent", EDITION_NOT_SUPPORT,
+                    "Express Edition 不提供 SQL Server Agent，不评估作业失败和运行状态");
+        }
+        return InstanceCapabilityVo.of("sql_agent", "SQL Server Agent", AVAILABLE, null);
+    }
     static int majorFromProductVersion(String version) {
         if (version == null || version.isBlank()) return 0;
         try {
@@ -122,11 +137,12 @@ public class SqlServerCapabilityProbe {
             try (ResultSet rs = st.executeQuery(
                     "SELECT actual_state_desc, readonly_reason FROM sys.database_query_store_options")) {
                 if (!rs.next()) {
-                    return InstanceCapabilityVo.of("query_store", "Query Store", LIMITED, "未返回 Query Store 状态");
+                    return InstanceCapabilityVo.of("query_store", "Query Store", NOT_ENABLED, "当前数据库未启用 Query Store");
                 }
                 String state = rs.getString(1);
-                return InstanceCapabilityVo.of("query_store", "Query Store",
-                        "READ_WRITE".equalsIgnoreCase(state) ? AVAILABLE : LIMITED,
+                String status = "READ_WRITE".equalsIgnoreCase(state) ? AVAILABLE
+                        : "OFF".equalsIgnoreCase(state) ? NOT_ENABLED : LIMITED;
+                return InstanceCapabilityVo.of("query_store", "Query Store", status,
                         "READ_WRITE".equalsIgnoreCase(state) ? null
                                 : "当前数据库 Query Store 状态为 " + state + "，历史 SQL 与计划诊断受限");
             }

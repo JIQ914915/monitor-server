@@ -51,10 +51,13 @@ class SqlServerVersionResolverTest {
             SqlServerVersionAdapter adapter = resolver.resolve(version);
             assertThat(adapter.identitySql()).contains("SERVERPROPERTY", "sys.dm_os_sys_info");
             assertThat(adapter.performanceCountersSql())
-                    .contains("sys.dm_os_performance_counters", "Memory Grants Pending");
+                    .contains("sys.dm_os_performance_counters", "Memory Grants Pending",
+                            "object_name LIKE", "cntr_type");
             assertThat(adapter.runtimeSql())
                     .contains("sys.dm_os_schedulers", "sys.dm_exec_requests");
-            assertThat(adapter.waitStatsSql()).contains("sys.dm_os_wait_stats", "wait_category");
+            assertThat(adapter.waitStatsSql()).contains("sys.dm_os_wait_stats", "wait_type").doesNotContain("wait_category");
+            assertThat(adapter.databaseHealthSql()).contains("sys.databases", "state_desc", "user_access_desc");
+            assertThat(adapter.suspectPagesSql()).contains("msdb.dbo.suspect_pages", "event_type IN (1,2,3,4)");
             assertThat(adapter.storageSql()).contains("sys.dm_io_virtual_file_stats");
             if (!"2008R2".equals(version)) {
                 assertThat(adapter.storageSql()).contains("sys.dm_db_log_space_usage");
@@ -63,7 +66,10 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.deadlockEventsSql()).contains("system_health", "xml_deadlock_report");
             assertThat(adapter.blockingChainSql()).contains("blocking_session_id");
             assertThat(adapter.backupCoverageSql()).contains("msdb.dbo.backupset", "recovery_model_desc");
-            assertThat(adapter.alwaysOnHealthSql()).contains("sys.dm_hadr_database_replica_states", "log_send_queue_size");
+            assertThat(adapter.alwaysOnHealthSql())
+                    .contains("sys.dm_hadr_database_replica_states", "sys.availability_databases_cluster",
+                            "log_send_queue_size", "drs.is_local")
+                    .doesNotContain("WHERE drs.is_local=1");
             assertThat(adapter.agentHealthSql()).contains("msdb.dbo.sysjobs").doesNotContain("command");
             assertThat(adapter.logShippingSql()).contains("log_shipping_monitor_primary");
             assertThat(adapter.replicationCdcSql()).contains("is_cdc_enabled");
@@ -71,7 +77,8 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.indexCandidatesSql()).contains("sys.dm_db_missing_index_group_stats");
             assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
                             adapter.performanceCountersSql(), adapter.runtimeSql(),
-                            adapter.waitStatsSql(), adapter.storageSql(), adapter.queryStoreTopSql(),
+                            adapter.waitStatsSql(), adapter.databaseHealthSql(), adapter.suspectPagesSql(),
+                            adapter.storageSql(), adapter.queryStoreTopSql(),
                             adapter.dmvTopSql(), adapter.deadlockEventsSql(), adapter.blockingChainSql(),
                             adapter.backupCoverageSql(), adapter.alwaysOnHealthSql(), adapter.agentHealthSql(),
                             adapter.logShippingSql(), adapter.replicationCdcSql(), adapter.configurationSnapshotSql(),

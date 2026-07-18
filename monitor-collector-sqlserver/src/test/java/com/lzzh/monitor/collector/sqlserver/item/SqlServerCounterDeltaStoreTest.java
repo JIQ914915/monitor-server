@@ -21,6 +21,12 @@ class SqlServerCounterDeltaStoreTest {
     }
 
     @Test
+    void emitsDeltaOnlyAfterBaselineAndIgnoresReset() {
+        assertThat(store.delta(1L, "suspect", 2, 1_000)).isEmpty();
+        assertThat(store.delta(1L, "suspect", 5, 61_000)).hasValue(3.0);
+        assertThat(store.delta(1L, "suspect", 1, 121_000)).isEmpty();
+    }
+    @Test
     void keepsInstancesIsolated() {
         store.rate(1L, "io", 100, 1_000);
         assertThat(store.rate(2L, "io", 200, 61_000)).isEmpty();

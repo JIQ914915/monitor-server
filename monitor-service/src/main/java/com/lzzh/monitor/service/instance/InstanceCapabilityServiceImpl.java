@@ -186,12 +186,17 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
 
     /** SQL Server 基础能力清单：先给出平台能力，再合并目标实例的实时探测结果。 */
     private List<InstanceCapabilityVo> detectSqlServer(DbInstance ins, String version) {
+        CollectLog latest1m = latestLog(ins.getId(), "1m");
         List<InstanceCapabilityVo> list = new ArrayList<>();
-        list.add(collectCapability(ins, latestLog(ins.getId(), "1m")));
-        list.add(InstanceCapabilityVo.of("connections", "连接、会话与事务监控", AVAILABLE, null));
-        list.add(InstanceCapabilityVo.of("waits", "等待与调度器监控", AVAILABLE, null));
-        list.add(InstanceCapabilityVo.of("storage", "数据文件、事务日志与 tempdb", AVAILABLE, null));
-        list.add(InstanceCapabilityVo.of("blocking", "阻塞链与死锁诊断", AVAILABLE, null));
+        list.add(collectCapability(ins, latest1m));
+        list.add(sqlServerItemCapability(latest1m, "connections", "连接、会话与事务监控",
+                "performance", "runtime"));
+        list.add(sqlServerItemCapability(latest1m, "waits", "等待与调度器监控", "wait_stats"));
+        list.add(sqlServerItemCapability(latest1m, "database_health", "用户数据库健康状态", "database_health"));
+        list.add(sqlServerItemCapability(latest1m, "integrity_events", "疑似损坏页线索", "integrity_events"));
+        list.add(sqlServerItemCapability(latest1m, "storage", "全部用户库容量、事务日志与 tempdb",
+                "storage", "tempdb"));
+        list.add(sqlServerItemCapability(latest1m, "blocking", "阻塞链与死锁诊断", "deadlock_events"));
         if (ins.getHostId() == null) {
             list.add(InstanceCapabilityVo.of("host_metrics", "主机资源监控", NOT_APPLICABLE,
                     "未关联主机：数据库侧监控可用，但无法确认宿主 CPU、内存、磁盘和网络压力"));
@@ -205,6 +210,26 @@ public class InstanceCapabilityServiceImpl implements InstanceCapabilityService 
         return list;
     }
 
+    private InstanceCapabilityVo sqlServerItemCapability(CollectLog latest, String capability,
+                                                           String name, String... itemCodes) {
+        if (latest == null || latest.getCollectTime() == null
+                || latest.getCollectTime().isBefore(OffsetDateTime.now().minusMinutes(MINUTE_STALE_MINUTES))) {
+            return InstanceCapabilityVo.of(capability, name, NO_DATA, "分钟级采集尚无新鲜数据");
+        }
+        if (Boolean.FALSE.equals(latest.getSuccess())) {
+            String error = latest.getErrorMessage();
+            if (!StringUtils.hasText(error) || !error.contains(":")) {
+                return InstanceCapabilityVo.of(capability, name, COLLECT_ERROR, "最近一次分钟级采集失败");
+            }
+            for (String itemCode : itemCodes) {
+                if (error.contains(itemCode + ":") || error.contains(itemCode + "[")) {
+                    return InstanceCapabilityVo.of(capability, name, COLLECT_ERROR,
+                            "最近一次采集项失败：" + truncate(error, 200));
+                }
+            }
+        }
+        return InstanceCapabilityVo.of(capability, name, AVAILABLE, null);
+    }
     /** 扩展探测指标（PgExtensionsItem，天级）：0=未启用 1=差一步 2=就绪。 */
     private static final String PG_STAT_STATEMENTS_METRIC = "pg.ext.pg_stat_statements";
 
