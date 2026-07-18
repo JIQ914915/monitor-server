@@ -598,7 +598,8 @@ public class SlowSqlQueryServiceImpl implements SlowSqlQueryService {
 
     /**
      * Top SQL 支持性按库类型判定：MySQL 5.6 无 P_S digest 采集；
-     * PostgreSQL 依赖 pg_stat_statements 扩展（天级探测指标，2=就绪）。
+     * PostgreSQL 依赖 pg_stat_statements 扩展（天级探测指标，2=就绪）；
+     * SQL Server 由 Query Store 采集，未启用时自动降级为只读 DMV 快照。
      */
     private boolean isTopSqlSupported(Long instanceId) {
         try {
@@ -610,6 +611,10 @@ public class SlowSqlQueryServiceImpl implements SlowSqlQueryService {
                 Double ext = paramQueryDao.latestNumericParams(instanceId,
                         List.of(PG_STAT_STATEMENTS_METRIC)).get(PG_STAT_STATEMENTS_METRIC);
                 return ext != null && ext >= 2;
+            }
+            if ("SQL Server".equalsIgnoreCase(instance.getDbType())
+                    || "SQLSERVER".equalsIgnoreCase(instance.getDbType())) {
+                return true;
             }
             if (!"MySQL".equalsIgnoreCase(instance.getDbType())) {
                 return false;
