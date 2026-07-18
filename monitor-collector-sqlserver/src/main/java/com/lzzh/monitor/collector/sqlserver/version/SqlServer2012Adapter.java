@@ -4,6 +4,7 @@ package com.lzzh.monitor.collector.sqlserver.version;
 public class SqlServer2012Adapter extends SqlServer2017Adapter {
     @Override public String version() { return "2012"; }
     @Override public boolean supportsQueryStore() { return false; }
+    @Override public boolean supportsVlfDmv() { return false; }
 
     @Override
     public String identitySql() {
@@ -46,4 +47,16 @@ public class SqlServer2012Adapter extends SqlServer2017Adapter {
                  WHERE 1=0
                 """;
     }
-}
+
+    @Override
+    public String vlfSql() {
+        return "DBCC LOGINFO WITH NO_INFOMSGS";
+    }
+    @Override
+    public String queryStoreRegressionSql() {
+        return """
+                SELECT CAST(NULL AS varchar(64)) AS digest,CAST(NULL AS bigint) AS current_executions,
+                       CAST(NULL AS int) AS current_plan_count,CAST(NULL AS int) AS has_new_plan,
+                       CAST(NULL AS float) AS regression_ratio WHERE 1=0
+                """;
+    }}

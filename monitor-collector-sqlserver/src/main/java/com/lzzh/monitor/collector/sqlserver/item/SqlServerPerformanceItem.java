@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.OptionalDouble;
 
 /** 吞吐、连接、内存与 Buffer Pool 核心指标。 */
 @Component
@@ -40,10 +41,31 @@ public class SqlServerPerformanceItem implements SqlServerMetricItem {
                 rate(rs, request, sink, "sqlserver.page_reads_per_sec", "page_reads_total", ts);
                 rate(rs, request, sink, "sqlserver.page_writes_per_sec", "page_writes_total", ts);
                 rate(rs, request, sink, "sqlserver.deadlocks_per_sec", "deadlocks_total", ts);
+                rate(rs, request, sink, "sqlserver.log.bytes_flushed_per_sec", "log_bytes_flushed_total", ts);
+                logFlushMetrics(rs, request, sink, ts);
             }
         }
     }
 
+    private void logFlushMetrics(ResultSet rs, CollectRequest request,
+                                 SqlServerMetricSink sink, long ts) throws Exception {
+        double flushes = rs.getDouble("log_flushes_total");
+        boolean flushesNull = rs.wasNull();
+        double waitMillis = rs.getDouble("log_flush_wait_ms_total");
+        boolean waitNull = rs.wasNull();
+        if (flushesNull || waitNull) return;
+        OptionalDouble flushRate = deltaStore.rate(request.getInstanceId(),
+                "sqlserver.log.flushes_per_sec", flushes, ts);
+        flushRate.ifPresent(value -> sink.addNumeric("sqlserver.log.flushes_per_sec", value, ts));
+        OptionalDouble flushDelta = deltaStore.delta(request.getInstanceId(),
+                "sqlserver.log.flushes_for_average", flushes, ts);
+        OptionalDouble waitDelta = deltaStore.delta(request.getInstanceId(),
+                "sqlserver.log.flush_wait_for_average", waitMillis, ts);
+        if (flushDelta.isPresent() && waitDelta.isPresent() && flushDelta.getAsDouble() > 0) {
+            sink.addNumeric("sqlserver.log.flush_latency_ms",
+                    waitDelta.getAsDouble() / flushDelta.getAsDouble(), ts);
+        }
+    }
     private void rate(ResultSet rs, CollectRequest request, SqlServerMetricSink sink,
                       String metric, String column, long ts) throws Exception {
         double value = rs.getDouble(column);

@@ -76,6 +76,8 @@ public class SqlServerStorageItem implements SqlServerMetricItem {
                         if (blocked) reuseBlocked++;
                         reuseSnapshot.append(safeName(database)).append('=').append(reuseWait == null ? "UNKNOWN" : reuseWait).append('\n');
                         object(sink, "sqlserver.storage.data_size_bytes", database, databaseDataSize, ts);
+                        if (databaseDataSize != null) sink.addObject(
+                                "capacity.total_size_bytes", "table", database, databaseDataSize, ts);
                         object(sink, "sqlserver.storage.data_used_bytes", database, databaseDataUsed, ts);
                         object(sink, "sqlserver.storage.log_size_bytes", database, databaseLogSize, ts);
                         object(sink, "sqlserver.storage.log_used_percent", database, databaseLogUsed, ts);

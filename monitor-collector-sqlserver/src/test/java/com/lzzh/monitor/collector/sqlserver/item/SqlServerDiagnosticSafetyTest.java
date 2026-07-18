@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.sqlserver.item;
 
 import org.junit.jupiter.api.Test;
+import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SqlServerDiagnosticSafetyTest {
@@ -14,6 +15,17 @@ class SqlServerDiagnosticSafetyTest {
         assertThat(SqlServerWaitStatsItem.categoryOf("PAGEIOLATCH_SH")).isEqualTo("io");
         assertThat(SqlServerWaitStatsItem.categoryOf("HADR_SYNC_COMMIT")).isEqualTo("ha");
         assertThat(SqlServerWaitStatsItem.categoryOf("UNKNOWN_WAIT")).isEqualTo("other");
+    }
+    @Test void resolvesBlockingRootAndDepth() {
+        Map<Integer, SqlServerBlockingItem.BlockingRow> rows = Map.of(
+                11, new SqlServerBlockingItem.BlockingRow(11, 22, 10, null, null, null, null),
+                22, new SqlServerBlockingItem.BlockingRow(22, 33, 20, null, null, null, null));
+        assertThat(SqlServerBlockingItem.rootBlocker(11, rows)).isEqualTo(33);
+        assertThat(SqlServerBlockingItem.chainDepth(11, rows)).isEqualTo(2);
+    }
+
+    @Test void convertsAgentDurationFromHhmmss() {
+        assertThat(SqlServerAgentItem.durationSeconds(123045)).isEqualTo(12 * 3600 + 30 * 60 + 45);
     }
     @Test void keepsDeadlockXmlButRedactsInputBuffer() {
         String xml="<event><data><inputbuf>update t set secret='abc' where id=9</inputbuf></data></event>";

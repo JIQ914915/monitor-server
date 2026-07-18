@@ -9,6 +9,8 @@ import com.lzzh.monitor.api.response.DrilldownProfileVo;
 import com.lzzh.monitor.api.response.ReportDetailVo;
 import com.lzzh.monitor.api.response.ReportScheduleVo;
 import com.lzzh.monitor.api.response.ReportVo;
+import com.lzzh.monitor.api.response.CapacityForecastVo;
+import com.lzzh.monitor.api.response.MetricObjectVo;
 import com.lzzh.monitor.api.response.MetricTrendVo;
 import com.lzzh.monitor.common.constant.Constants;
 import com.lzzh.monitor.common.enums.DbType;
@@ -108,6 +110,11 @@ public class ReportServiceImpl implements ReportService {
         SQLSERVER_CORE_METRICS.put("sqlserver.blocked_sessions", new String[]{"阻塞会话", ""});
         SQLSERVER_CORE_METRICS.put("sqlserver.storage.log_used_percent", new String[]{"日志使用率", "%"});
         SQLSERVER_CORE_METRICS.put("sqlserver.deadlocks_per_sec", new String[]{"死锁/秒", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.transaction.max_seconds", new String[]{"最长事务时长", "s"});
+        SQLSERVER_CORE_METRICS.put("sqlserver.blocking.max_wait_seconds", new String[]{"最长阻塞时长", "s"});
+        SQLSERVER_CORE_METRICS.put("sqlserver.log.flush_latency_ms", new String[]{"日志刷新延迟", "ms"});
+        SQLSERVER_CORE_METRICS.put("sqlserver.tempdb.pagelatch_waiting_tasks", new String[]{"tempdb PAGELATCH 等待", ""});
+        SQLSERVER_CORE_METRICS.put("sqlserver.query_store.max_regression_ratio", new String[]{"Query Store 最大回退倍数", "x"});
     }
 
     private static final LinkedHashMap<String, String[]> PG_CORE_METRICS = new LinkedHashMap<>();
@@ -294,14 +301,19 @@ public class ReportServiceImpl implements ReportService {
                 sections = buildAlertSections(instances, from, to);
             }
             case "capacity" -> {
-                List<String> unsupported = instances.stream().filter(ins -> resolveDbType(ins) != DbType.MYSQL)
-                        .map(DbInstance::getName).toList();
-                if (!unsupported.isEmpty()) {
-                    throw new BusinessException("容量专项报告当前仅支持 MySQL 实例: " + String.join("、", unsupported));
+                boolean allMySql = instances.stream().allMatch(ins -> resolveDbType(ins) == DbType.MYSQL);
+                boolean allSqlServer = instances.stream().allMatch(ins -> resolveDbType(ins) == DbType.SQLSERVER);
+                if (!allMySql && !allSqlServer) {
+                    throw new BusinessException("容量专项报告需选择同一种数据库类型，当前支持 MySQL 和 SQL Server");
                 }
                 prefix = "CAP";
-                title = "MySQL 容量专项报告";
-                sections = buildMySqlPreventionSections(instances, from, to, true);
+                if (allSqlServer) {
+                    title = "SQL Server 容量专项报告";
+                    sections = buildSqlServerCapacitySections(instances);
+                } else {
+                    title = "MySQL 容量专项报告";
+                    sections = buildMySqlPreventionSections(instances, from, to, true);
+                }
             }
             case "security" -> {
                 List<String> unsupported = instances.stream()
@@ -818,6 +830,73 @@ public class ReportServiceImpl implements ReportService {
 
     // ── 性能分析报告（单实例） ────────────────────────────────────────────────
 
+    private List<Map<String, Object>> buildSqlServerCapacitySections(List<DbInstance> instances) {
+        List<Map<String, Object>> sections = new ArrayList<>();
+        List<Map<String, Object>> forecastRows = new ArrayList<>();
+        List<Map<String, Object>> fileRows = new ArrayList<>();
+        List<Map<String, Object>> volumeRows = new ArrayList<>();
+        for (DbInstance instance : instances) {
+            CapacityForecastVo forecast = metricQueryService.capacityForecast(instance.getId());
+            Map<String, Object> forecastRow = new LinkedHashMap<>();
+            forecastRow.put("instance", instance.getName());
+            forecastRow.put("status", dictLabel("capacity_prediction_status", forecast.getPredictionStatus()));
+            forecastRow.put("current", forecast.getCurrentBytes() == null ? "-" : gb(forecast.getCurrentBytes()));
+            forecastRow.put("growth7", forecast.getDailyGrowth7dBytes() == null ? "-"
+                    : gb(Math.round(forecast.getDailyGrowth7dBytes())) + "/天");
+            forecastRow.put("growth30", forecast.getDailyGrowth30dBytes() == null ? "-"
+                    : gb(Math.round(forecast.getDailyGrowth30dBytes())) + "/天");
+            forecastRow.put("volume", forecast.getDiskMount() == null ? "-" : forecast.getDiskMount());
+            forecastRow.put("available", forecast.getDiskAvailBytes() == null ? "-" : gb(forecast.getDiskAvailBytes()));
+            forecastRow.put("exhaustion", forecast.getEstimatedExhaustionDate() == null ? "-" : forecast.getEstimatedExhaustionDate());
+            forecastRow.put("conclusion", forecast.getNote());
+            forecastRows.add(forecastRow);
+
+            MetricObjectVo files = metricQueryService.metricObjects(instance.getId(), "sqlserver.file.size_bytes", 30);
+            if (files.getItems() != null) {
+                files.getItems().forEach(file -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("instance", instance.getName());
+                    row.put("file", file.getObjectName());
+                    row.put("size", gb(Math.round(file.getValue())));
+                    fileRows.add(row);
+                });
+            }
+
+            MetricObjectVo freePercents = metricQueryService.metricObjects(instance.getId(), "sqlserver.volume.free_percent", 30);
+            MetricObjectVo available = metricQueryService.metricObjects(instance.getId(), "sqlserver.volume.available_bytes", 30);
+            Map<String, Double> availableByVolume = available.getItems() == null ? Map.of()
+                    : available.getItems().stream().collect(Collectors.toMap(
+                            MetricObjectVo.Item::getObjectName, MetricObjectVo.Item::getValue, (left, right) -> left));
+            if (freePercents.getItems() != null) {
+                freePercents.getItems().forEach(volume -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("instance", instance.getName());
+                    row.put("volume", volume.getObjectName());
+                    row.put("freePercent", pct(volume.getValue()) + "%");
+                    Double bytes = availableByVolume.get(volume.getObjectName());
+                    row.put("available", bytes == null ? "-" : gb(Math.round(bytes)));
+                    volumeRows.add(row);
+                });
+            }
+        }
+        sections.add(tableSection("一、容量趋势与耗尽预测", List.of(
+                col("instance", "实例"), col("status", "状态"), col("current", "当前容量"),
+                col("growth7", "近7天增长"), col("growth30", "近30天增长"), col("volume", "约束卷"),
+                col("available", "卷剩余"), col("exhaustion", "预计耗尽"), col("conclusion", "结论")
+        ), forecastRows, "暂无 SQL Server 容量预测数据"));
+        sections.add(tableSection("二、文件容量 Top 30", List.of(
+                col("instance", "实例"), col("file", "数据库/文件"), col("size", "文件容量")
+        ), fileRows, "暂无 SQL Server 文件级容量数据"));
+        sections.add(tableSection("三、文件卷剩余空间", List.of(
+                col("instance", "实例"), col("volume", "卷"), col("freePercent", "剩余比例"),
+                col("available", "剩余容量")
+        ), volumeRows, "暂无 SQL Server 文件卷空间数据"));
+        sections.add(listSection("四、使用说明", List.of(
+                "预测基于最近容量快照线性外推，仅作为归档、扩容和专项评审的风险提示。",
+                "文件自动增长、日志复用等待、VLF 与 tempdb 布局需结合对应指标和告警人工确认。",
+                "平台不自动扩容、收缩文件或调整自动增长配置。")));
+        return sections;
+    }
     private List<Map<String, Object>> buildPerformanceSections(DbInstance ins,
                                                                OffsetDateTime from, OffsetDateTime to) {
         List<Map<String, Object>> sections = new ArrayList<>();

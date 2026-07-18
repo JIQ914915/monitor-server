@@ -55,10 +55,13 @@ class SqlServerVersionResolverTest {
                             "object_name LIKE", "cntr_type");
             assertThat(adapter.runtimeSql())
                     .contains("sys.dm_os_schedulers", "sys.dm_exec_requests");
+            assertThat(adapter.transactionDetailSql()).contains("sys.dm_tran_active_transactions", "sleeping_open");
             assertThat(adapter.waitStatsSql()).contains("sys.dm_os_wait_stats", "wait_type").doesNotContain("wait_category");
             assertThat(adapter.databaseHealthSql()).contains("sys.databases", "state_desc", "user_access_desc");
             assertThat(adapter.suspectPagesSql()).contains("msdb.dbo.suspect_pages", "event_type IN (1,2,3,4)");
             assertThat(adapter.storageSql()).contains("sys.dm_io_virtual_file_stats");
+            assertThat(adapter.fileCapacitySql()).contains("sys.database_files", "sys.dm_os_volume_stats");
+            assertThat(adapter.vlfSql()).contains(adapter.supportsVlfDmv() ? "sys.dm_db_log_info" : "DBCC LOGINFO");
             if (!"2008R2".equals(version)) {
                 assertThat(adapter.storageSql()).contains("sys.dm_db_log_space_usage");
             }
@@ -71,17 +74,23 @@ class SqlServerVersionResolverTest {
                             "log_send_queue_size", "drs.is_local")
                     .doesNotContain("WHERE drs.is_local=1");
             assertThat(adapter.agentHealthSql()).contains("msdb.dbo.sysjobs").doesNotContain("command");
+            assertThat(adapter.agentJobsSql()).contains("consecutive_failures", "failed_step_name").doesNotContain("command");
             assertThat(adapter.logShippingSql()).contains("log_shipping_monitor_primary");
             assertThat(adapter.replicationCdcSql()).contains("is_cdc_enabled");
+            assertThat(adapter.replicationLatencySql()).contains("Replication Dist.", "Delivery Latency");
+            assertThat(adapter.cdcLatencySql()).contains("fn_cdc_get_max_lsn", "cdc.change_tables");
             assertThat(adapter.configurationSnapshotSql()).contains("sys.configurations");
             assertThat(adapter.indexCandidatesSql()).contains("sys.dm_db_missing_index_group_stats");
             assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
-                            adapter.performanceCountersSql(), adapter.runtimeSql(),
+                            adapter.performanceCountersSql(), adapter.runtimeSql(), adapter.transactionDetailSql(),
                             adapter.waitStatsSql(), adapter.databaseHealthSql(), adapter.suspectPagesSql(),
-                            adapter.storageSql(), adapter.queryStoreTopSql(),
+                            adapter.storageSql(), adapter.fileCapacitySql(), adapter.vlfSql(),
+                            adapter.queryStoreTopSql(), adapter.queryStoreRegressionSql(),
                             adapter.dmvTopSql(), adapter.deadlockEventsSql(), adapter.blockingChainSql(),
                             adapter.backupCoverageSql(), adapter.alwaysOnHealthSql(), adapter.agentHealthSql(),
-                            adapter.logShippingSql(), adapter.replicationCdcSql(), adapter.configurationSnapshotSql(),
+                            adapter.agentJobsSql(),
+                            adapter.logShippingSql(), adapter.replicationCdcSql(), adapter.replicationLatencySql(),
+                            adapter.cdcLatencySql(), adapter.configurationSnapshotSql(),
                             adapter.indexCandidatesSql()))
                     .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ", "INSERT ");
         }

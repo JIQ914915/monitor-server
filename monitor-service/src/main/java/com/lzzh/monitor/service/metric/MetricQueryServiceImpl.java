@@ -167,10 +167,18 @@ public class MetricQueryServiceImpl implements MetricQueryService {
         int days7 = (int) Math.max(1, last7.day().toEpochDay() - first7.day().toEpochDay());
         result.setDailyGrowth7dBytes((last7.currentBytes() - first7.currentBytes()) / (double) days7);
         DbInstance instance = dbInstanceMapper.selectById(instanceId);
-        if (instance == null || instance.getHostId() == null) { result.setPredictionStatus("insufficient"); result.setNote("实例未关联主机，无法读取数据盘剩余空间"); return result; }
-        String json = textReader.latestFrom1m(instance.getHostId(), List.of("host.disk.mount_detail")).get("host.disk.mount_detail");
-        DiskCapacity disk = largestDisk(json);
-        if (disk == null) { result.setPredictionStatus("insufficient"); result.setNote("关联主机暂无数据盘挂载点明细，无法估算剩余天数"); return result; }
+        DiskCapacity disk = null;
+        if (instance != null && instance.getHostId() != null) {
+            String json = textReader.latestFrom1m(instance.getHostId(), List.of("host.disk.mount_detail"))
+                    .get("host.disk.mount_detail");
+            disk = largestDisk(json);
+        }
+        if (disk == null) disk = sqlServerVolumeWithLeastFreeSpace(instanceId);
+        if (disk == null) {
+            result.setPredictionStatus("insufficient");
+            result.setNote("实例未关联有效主机磁盘，且暂无 SQL Server 文件卷空间数据，无法估算剩余天数");
+            return result;
+        }
         result.setDiskMount(disk.mount()); result.setDiskTotalBytes(disk.totalBytes()); result.setDiskAvailBytes(disk.availBytes()); result.setDiskUsagePercent(disk.usagePercent());
         if (dailyGrowth <= 0) { result.setPredictionStatus("stable"); result.setNote("最近容量未增长，暂无耗尽风险预测"); return result; }
         result.setEstimatedDaysRemaining((int) Math.min(3650, Math.ceil(disk.availBytes() / dailyGrowth)));
@@ -193,6 +201,27 @@ public class MetricQueryServiceImpl implements MetricQueryService {
         return selected;
     }
 
+    private DiskCapacity sqlServerVolumeWithLeastFreeSpace(Long instanceId) {
+        List<TsMetricObjectDao.ObjectPoint> available = metricObjectDao.queryTopN(
+                instanceId, "sqlserver.volume.available_bytes", 200);
+        if (available.isEmpty()) return null;
+        List<String> names = available.stream().map(TsMetricObjectDao.ObjectPoint::objectName).toList();
+        Map<String, Double> totals = metricObjectDao.queryLatestValuesByNames(
+                instanceId, "sqlserver.volume.total_bytes", names);
+        DiskCapacity selected = null;
+        double selectedFreePercent = Double.MAX_VALUE;
+        for (TsMetricObjectDao.ObjectPoint point : available) {
+            Double totalValue = totals.get(point.objectName());
+            if (totalValue == null || totalValue <= 0 || point.value() < 0) continue;
+            double freePercent = point.value() * 100.0 / totalValue;
+            if (freePercent < selectedFreePercent) {
+                selectedFreePercent = freePercent;
+                selected = new DiskCapacity(point.objectName(), Math.round(totalValue),
+                        Math.round(point.value()), 100.0 - freePercent);
+            }
+        }
+        return selected;
+    }
     private record DiskCapacity(String mount, long totalBytes, long availBytes, Double usagePercent) {}
     @Override
     public MetricTrendVo metricTrend(Long instanceId, String metricCode, long from, long to, String frequency) {

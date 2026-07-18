@@ -11,7 +11,7 @@ import java.util.List;
 @Schema(description = "报告生成入参")
 public class ReportGenerateRequest {
 
-    @Schema(description = "报告类型（字典 report_type）：inspection/performance/alert", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "报告类型（字典 report_type）：inspection/performance/alert/capacity/security", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "报告类型不能为空")
     private String reportType;
 

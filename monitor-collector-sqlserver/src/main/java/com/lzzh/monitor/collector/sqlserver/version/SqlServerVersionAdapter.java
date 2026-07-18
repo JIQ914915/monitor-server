@@ -6,23 +6,31 @@ import com.lzzh.monitor.collector.spi.version.VersionAdapter;
 public interface SqlServerVersionAdapter extends VersionAdapter {
     default boolean supportsQueryStore() { return true; }
     default boolean supportsAlwaysOn() { return true; }
+    default boolean supportsVlfDmv() { return true; }
     String identitySql();
     String queryStoreCapabilitySql();
     String performanceCountersSql();
     String runtimeSql();
+    String transactionDetailSql();
     String waitStatsSql();
     String databaseHealthSql();
     String suspectPagesSql();
     String storageSql();
+    String fileCapacitySql();
+    String vlfSql();
     String queryStoreTopSql();
+    String queryStoreRegressionSql();
     String dmvTopSql();
     String deadlockEventsSql();
     String blockingChainSql();
     String backupCoverageSql();
     String alwaysOnHealthSql();
     String agentHealthSql();
+    String agentJobsSql();
     String logShippingSql();
     String replicationCdcSql();
+    String replicationLatencySql();
+    String cdcLatencySql();
     String configurationSnapshotSql();
     String indexCandidatesSql();
 }

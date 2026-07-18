@@ -68,7 +68,16 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                            THEN cntr_value END) AS page_writes_total,
                   MAX(CASE WHEN object_name LIKE '%:Locks' AND instance_name='_Total'
                             AND counter_name='Number of Deadlocks/sec' AND cntr_type IN (272696320,272696576)
-                           THEN cntr_value END) AS deadlocks_total
+                           THEN cntr_value END) AS deadlocks_total,
+                  MAX(CASE WHEN object_name LIKE '%:Databases' AND instance_name='_Total'
+                            AND counter_name='Log Bytes Flushed/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS log_bytes_flushed_total,
+                  MAX(CASE WHEN object_name LIKE '%:Databases' AND instance_name='_Total'
+                            AND counter_name='Log Flushes/sec' AND cntr_type IN (272696320,272696576)
+                           THEN cntr_value END) AS log_flushes_total,
+                  MAX(CASE WHEN object_name LIKE '%:Databases' AND instance_name='_Total'
+                            AND counter_name='Log Flush Wait Time' AND cntr_type IN (65792,272696320,272696576)
+                           THEN cntr_value END) AS log_flush_wait_ms_total
                 FROM sys.dm_os_performance_counters
                 WHERE instance_name IN ('', '_Total')
                 """;
@@ -92,6 +101,34 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                      FROM sys.dm_exec_requests WHERE session_id<>@@SPID) AS max_request_seconds,
                   (SELECT COALESCE(MAX(open_transaction_count),0)
                      FROM sys.dm_exec_sessions WHERE is_user_process=1) AS max_open_transactions
+                """;
+    }
+
+    @Override
+    public String transactionDetailSql() {
+        return """
+                WITH transactions AS (
+                  SELECT s.session_id,s.status,s.login_name,s.host_name,s.program_name,
+                         DB_NAME(dt.database_id) AS database_name,
+                         DATEDIFF(second,at.transaction_begin_time,SYSDATETIME()) AS transaction_seconds,
+                         s.open_transaction_count,
+                         CASE WHEN s.status='sleeping' AND s.open_transaction_count>0 THEN 1 ELSE 0 END AS sleeping_open,
+                         LEFT(txt.text,500) AS sql_text,
+                         ROW_NUMBER() OVER(PARTITION BY s.session_id,at.transaction_id
+                                           ORDER BY dt.database_id) AS rn
+                    FROM sys.dm_tran_session_transactions st
+                    JOIN sys.dm_tran_active_transactions at ON at.transaction_id=st.transaction_id
+                    JOIN sys.dm_exec_sessions s ON s.session_id=st.session_id
+                    LEFT JOIN sys.dm_exec_connections c ON c.session_id=s.session_id
+                    LEFT JOIN sys.dm_tran_database_transactions dt ON dt.transaction_id=at.transaction_id
+                    OUTER APPLY sys.dm_exec_sql_text(c.most_recent_sql_handle) txt
+                   WHERE s.is_user_process=1 AND s.session_id<>@@SPID
+                     AND at.transaction_begin_time IS NOT NULL
+                )
+                SELECT session_id,status,login_name,host_name,program_name,database_name,
+                       transaction_seconds,open_transaction_count,sleeping_open,sql_text
+                  FROM transactions WHERE rn=1
+                 ORDER BY transaction_seconds DESC
                 """;
     }
 
@@ -149,6 +186,32 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
 
 
     @Override
+    public String fileCapacitySql() {
+        return """
+                SELECT DB_NAME() AS database_name,f.file_id,f.name AS file_name,f.type_desc,f.physical_name,
+                       f.size*8192.0 AS size_bytes,
+                       CASE WHEN f.type=0 THEN FILEPROPERTY(f.name,'SpaceUsed')*8192.0 END AS used_bytes,
+                       CASE WHEN f.max_size=-1 THEN NULL ELSE f.max_size*8192.0 END AS max_size_bytes,
+                       f.is_percent_growth,
+                       CASE WHEN f.is_percent_growth=1 THEN f.growth ELSE f.growth*8192.0 END AS growth_value,
+                       vs.volume_mount_point,vs.total_bytes AS volume_total_bytes,
+                       vs.available_bytes AS volume_available_bytes
+                  FROM sys.database_files f
+                  OUTER APPLY sys.dm_os_volume_stats(DB_ID(),f.file_id) vs
+                 ORDER BY f.file_id
+                """;
+    }
+
+    @Override
+    public String vlfSql() {
+        return """
+                SELECT COUNT(*) AS vlf_count,
+                       SUM(CASE WHEN vlf_active=1 THEN 1 ELSE 0 END) AS active_vlf_count
+                  FROM sys.dm_db_log_info(DB_ID())
+                """;
+    }
+
+    @Override
     public String queryStoreTopSql() {
         return """
                 SELECT TOP (50) DB_NAME() AS database_name,
@@ -168,6 +231,45 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                  WHERE i.end_time >= DATEADD(hour,-1,SYSUTCDATETIME())
                  GROUP BY q.query_hash, qt.query_sql_text
                  ORDER BY duration_us DESC
+                """;
+    }
+
+    @Override
+    public String queryStoreRegressionSql() {
+        return """
+                WITH plan_stats AS (
+                  SELECT q.query_hash,p.plan_id,
+                         SUM(CASE WHEN i.end_time>=DATEADD(hour,-1,SYSUTCDATETIME())
+                                  THEN rs.count_executions ELSE 0 END) AS current_executions,
+                         SUM(CASE WHEN i.end_time>=DATEADD(hour,-1,SYSUTCDATETIME())
+                                  THEN rs.avg_duration*rs.count_executions ELSE 0 END)/
+                           NULLIF(SUM(CASE WHEN i.end_time>=DATEADD(hour,-1,SYSUTCDATETIME())
+                                           THEN rs.count_executions ELSE 0 END),0) AS current_avg_duration_us,
+                         SUM(CASE WHEN i.end_time<DATEADD(hour,-1,SYSUTCDATETIME())
+                                  THEN rs.count_executions ELSE 0 END) AS baseline_executions,
+                         SUM(CASE WHEN i.end_time<DATEADD(hour,-1,SYSUTCDATETIME())
+                                  THEN rs.avg_duration*rs.count_executions ELSE 0 END)/
+                           NULLIF(SUM(CASE WHEN i.end_time<DATEADD(hour,-1,SYSUTCDATETIME())
+                                           THEN rs.count_executions ELSE 0 END),0) AS baseline_avg_duration_us
+                    FROM sys.query_store_query q
+                    JOIN sys.query_store_plan p ON p.query_id=q.query_id
+                    JOIN sys.query_store_runtime_stats rs ON rs.plan_id=p.plan_id
+                    JOIN sys.query_store_runtime_stats_interval i
+                      ON i.runtime_stats_interval_id=rs.runtime_stats_interval_id
+                   WHERE i.end_time>=DATEADD(day,-8,SYSUTCDATETIME())
+                   GROUP BY q.query_hash,p.plan_id
+                ), query_summary AS (
+                  SELECT query_hash,SUM(current_executions) AS current_executions,
+                         COUNT(CASE WHEN current_executions>0 THEN 1 END) AS current_plan_count,
+                         MAX(CASE WHEN current_executions>0 AND baseline_executions=0 THEN 1 ELSE 0 END) AS has_new_plan,
+                         MAX(CASE WHEN baseline_avg_duration_us>0 AND current_avg_duration_us IS NOT NULL
+                                  THEN current_avg_duration_us/baseline_avg_duration_us END) AS regression_ratio
+                    FROM plan_stats GROUP BY query_hash
+                )
+                SELECT TOP (50) CONVERT(varchar(64),query_hash,2) AS digest,current_executions,
+                       current_plan_count,has_new_plan,regression_ratio
+                  FROM query_summary WHERE current_executions>0
+                 ORDER BY regression_ratio DESC,current_executions DESC
                 """;
     }
 
@@ -290,6 +392,47 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
     }
 
     @Override
+    public String agentJobsSql() {
+        return """
+                WITH last_run AS (
+                  SELECT job_id,run_status,run_date,run_time,run_duration,step_name,
+                         ROW_NUMBER() OVER(PARTITION BY job_id ORDER BY instance_id DESC) rn
+                    FROM msdb.dbo.sysjobhistory WHERE step_id=0
+                ), activity AS (
+                  SELECT job_id,start_execution_date,stop_execution_date,
+                         ROW_NUMBER() OVER(PARTITION BY job_id ORDER BY session_id DESC) rn
+                    FROM msdb.dbo.sysjobactivity
+                )
+                SELECT j.job_id,j.name AS job_name,j.enabled,
+                       CASE WHEN a.start_execution_date IS NOT NULL AND a.stop_execution_date IS NULL
+                            THEN 4 ELSE COALESCE(l.run_status,5) END AS status_code,
+                       l.run_date,l.run_time,l.run_duration,
+                       COALESCE((SELECT COUNT(*) FROM msdb.dbo.sysjobhistory f
+                                  WHERE f.job_id=j.job_id AND f.step_id=0 AND f.run_status=0
+                                    AND f.instance_id>COALESCE((SELECT MAX(s.instance_id)
+                                          FROM msdb.dbo.sysjobhistory s
+                                         WHERE s.job_id=j.job_id AND s.step_id=0 AND s.run_status=1),0)),0)
+                         AS consecutive_failures,
+                       DATEDIFF(second,a.start_execution_date,GETDATE()) AS running_seconds,
+                       js.next_run_date,js.next_run_time,
+                       failed.step_name AS failed_step_name
+                  FROM msdb.dbo.sysjobs j
+                  LEFT JOIN last_run l ON l.job_id=j.job_id AND l.rn=1
+                  LEFT JOIN activity a ON a.job_id=j.job_id AND a.rn=1
+                  OUTER APPLY (SELECT TOP (1) s.next_run_date,s.next_run_time
+                                 FROM msdb.dbo.sysjobschedules s
+                                WHERE s.job_id=j.job_id
+                                ORDER BY CASE WHEN s.next_run_date=0 THEN 1 ELSE 0 END,
+                                         s.next_run_date,s.next_run_time) js
+                  OUTER APPLY (SELECT TOP (1) h.step_name
+                                FROM msdb.dbo.sysjobhistory h
+                               WHERE h.job_id=j.job_id AND h.step_id>0 AND h.run_status=0
+                               ORDER BY h.instance_id DESC) failed
+                 ORDER BY j.name
+                """;
+    }
+
+    @Override
     public String logShippingSql() {
         return """
                 SELECT
@@ -311,6 +454,27 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
                        SUM(CASE WHEN is_subscribed=1 THEN 1 ELSE 0 END) subscribed_databases,
                        SUM(CASE WHEN is_cdc_enabled=1 THEN 1 ELSE 0 END) cdc_databases
                   FROM sys.databases
+                """;
+    }
+
+    @Override
+    public String replicationLatencySql() {
+        return """
+                SELECT object_name,counter_name,instance_name,cntr_value
+                  FROM sys.dm_os_performance_counters
+                 WHERE (object_name LIKE '%:Replication Dist.%'
+                    OR object_name LIKE '%:Replication Logreader%')
+                   AND counter_name='Delivery Latency'
+                """;
+    }
+
+    @Override
+    public String cdcLatencySql() {
+        return """
+                SELECT COUNT(*) AS capture_instance_count,
+                       DATEDIFF(second,sys.fn_cdc_map_lsn_to_time(sys.fn_cdc_get_max_lsn()),GETDATE())
+                         AS cdc_latency_seconds
+                  FROM cdc.change_tables
                 """;
     }
 
