@@ -29,6 +29,8 @@
         DELETE FROM metric_long_conn WHERE instance_id = #{instanceId};
         DELETE FROM metric_slow_sql_sample WHERE instance_id = #{instanceId};
         DELETE FROM pg_operational_event WHERE instance_id = #{instanceId};
+        DELETE FROM pg_operational_snapshot WHERE instance_id = #{instanceId};
+        DELETE FROM pg_collect_item_status WHERE instance_id = #{instanceId};
         DELETE FROM mysql_plan_history WHERE instance_id = #{instanceId};
         DELETE FROM mysql_security_snapshot WHERE instance_id = #{instanceId};
         DELETE FROM pg_restore_drill WHERE instance_id = #{instanceId};

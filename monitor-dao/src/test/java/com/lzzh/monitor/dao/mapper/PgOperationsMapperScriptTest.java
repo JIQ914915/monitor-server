@@ -22,6 +22,11 @@ class PgOperationsMapperScriptTest {
         BoundSql countSql=c.getMappedStatement(PgOperationsMapper.class.getName()+".countEvents").getBoundSql(p);
         assertThat(countSql.getSql()).contains("SELECT count(*)","source=?","category<>'audit'").doesNotContain("LIMIT","OFFSET");
     }
-    @Test void eventWriterXmlParses() throws Exception {assertThat(parse("mapper/TsPgOperationalEventWriterMapper.xml").hasStatement(TsPgOperationalEventWriterMapper.class.getName()+".insertBatch")).isTrue();}
+    @Test void eventWriterXmlParses() throws Exception {
+        MybatisConfiguration c=parse("mapper/TsPgOperationalEventWriterMapper.xml");
+        String namespace=TsPgOperationalEventWriterMapper.class.getName();
+        assertThat(c.hasStatement(namespace+".insertStateChanges")).isTrue();
+        assertThat(c.hasStatement(namespace+".upsertSnapshots")).isTrue();
+    }
     private MybatisConfiguration parse(String path)throws Exception{MybatisConfiguration c=new MybatisConfiguration();try(InputStream in=getClass().getClassLoader().getResourceAsStream(path)){assertThat(in).isNotNull();new XMLMapperBuilder(in,c,path,c.getSqlFragments()).parse();}return c;}
 }

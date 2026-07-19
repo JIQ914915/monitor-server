@@ -9,6 +9,8 @@ import java.util.Map;
 
 @Mapper
 public interface PgDiagnosticMapper {
+    List<Map<String, Object>> selectCollectItemStatuses(@Param("instanceId") Long instanceId);
+
     long countQueryAnalytics(
             @Param("instanceId") Long instanceId, @Param("from") Timestamp from, @Param("to") Timestamp to,
             @Param("database") String database, @Param("user") String user, @Param("queryId") String queryId);

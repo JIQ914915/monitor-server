@@ -7,6 +7,8 @@ import java.util.List;
 
 @Mapper
 public interface TsPgOperationalEventWriterMapper {
-    int insertBatch(@Param("instanceId") Long instanceId,
+    int insertStateChanges(@Param("instanceId") Long instanceId,
+                    @Param("items") List<TsPgOperationalEventWriter.TsPgOperationalEvent> items);
+    int upsertSnapshots(@Param("instanceId") Long instanceId,
                     @Param("items") List<TsPgOperationalEventWriter.TsPgOperationalEvent> items);
 }

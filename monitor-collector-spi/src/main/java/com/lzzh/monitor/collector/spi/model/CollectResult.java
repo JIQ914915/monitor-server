@@ -20,7 +20,9 @@ public class CollectResult {
     private List<TopSqlPoint> topSqlPoints = new ArrayList<>();
     /** PostgreSQL Query Analytics 周期增量。 */
     private List<PgQueryStatPoint> pgQueryStatPoints = new ArrayList<>();
-    /** PostgreSQL 第三期标准化运维事件。 */
+    /** PostgreSQL 采集项当前质量状态（有界覆盖存储）。 */
+    private List<PgCollectItemStatusPoint> pgCollectItemStatusPoints = new ArrayList<>();
+    /** PostgreSQL 原生运维状态变化事件。 */
     private List<PgOperationalEventPoint> pgOperationalEventPoints = new ArrayList<>();
     /** SQL Server 死锁等诊断事件。 */
     private List<SqlServerDiagnosticEventPoint> sqlServerDiagnosticEventPoints = new ArrayList<>();

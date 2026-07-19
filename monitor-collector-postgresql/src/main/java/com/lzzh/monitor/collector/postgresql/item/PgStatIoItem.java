@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.postgresql.item;
 
 import com.lzzh.monitor.collector.postgresql.version.PgVersionAdapter;
+import com.lzzh.monitor.collector.postgresql.PgCollectionStatusCodes;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
@@ -42,6 +43,7 @@ public class PgStatIoItem implements PgMetricItem {
             throws SQLException {
         String sql = adapter.statIoSql();
         if (sql == null) {
+            sink.markUnavailable(CODE, PgCollectionStatusCodes.UNSUPPORTED);
             return;
         }
         long instanceId = request.getInstanceId();
@@ -51,6 +53,10 @@ public class PgStatIoItem implements PgMetricItem {
             try (ResultSet rs = st.executeQuery(sql)) {
 
                 if (rs.next()) {
+                    Double resetAge = PgStatsResetSupport.ageSeconds(rs, "stats_reset", ts);
+                    if (resetAge != null) {
+                        sink.addNumeric("pg.stats.io_reset_age_seconds", resetAge, ts);
+                    }
                     addRate(sink, instanceId, "pg.io.read_rate", rs.getLong("reads"), ts);
                     addRate(sink, instanceId, "pg.io.write_rate", rs.getLong("writes"), ts);
                     addRate(sink, instanceId, "pg.io.extend_rate", rs.getLong("extends"), ts);

@@ -12,6 +12,7 @@ public class Pg16Adapter extends Pg13Adapter {
                        COALESCE(SUM(extends), 0) AS extends,
                        COALESCE(SUM(read_time), 0) AS read_time_ms,
                        COALESCE(SUM(write_time), 0) AS write_time_ms,
+                       MAX(stats_reset) AS stats_reset,
                        NULL::bigint AS read_bytes, NULL::bigint AS write_bytes, NULL::bigint AS extend_bytes
                   FROM pg_stat_io
                  WHERE object = 'relation'

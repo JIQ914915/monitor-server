@@ -38,6 +38,38 @@ class HealthScoreServiceImplTest {
     }
 
     @Test
+    void calculatesSqlServerSecurityDimensionFromDailyAuditMetrics() {
+        TsMetricLatestDao latestDao = mock(TsMetricLatestDao.class);
+        InstanceRuntimeMetadataService metadata = mock(InstanceRuntimeMetadataService.class);
+        HealthScoreServiceImpl service = new HealthScoreServiceImpl();
+        ReflectionTestUtils.setField(service, "latestDao", latestDao);
+        ReflectionTestUtils.setField(service, "runtimeMetadataService", metadata);
+        when(metadata.getRequired(3L)).thenReturn(new InstanceRuntimeMetadata(
+                3L, 10L, 20L, "SQLSERVER", "SQL Server", "2022", null, null));
+        when(latestDao.latestFrom1m(eq(3L), anySet())).thenReturn(java.util.Map.of(
+                "sqlserver.availability", 1.0));
+        when(latestDao.latestFrom1h(eq(3L), anySet())).thenReturn(java.util.Map.of());
+        when(latestDao.latestFrom1d(eq(3L), anySet())).thenReturn(java.util.Map.of(
+                "sqlserver.security.policy_disabled_login_count", 2.0,
+                "sqlserver.security.expiration_disabled_login_count", 3.0,
+                "sqlserver.security.sa_enabled", 1.0,
+                "sqlserver.security.enabled_sysadmin_login_count", 4.0,
+                "sqlserver.security.trustworthy_database_count", 1.0,
+                "sqlserver.security.db_chaining_database_count", 0.0));
+
+        var result = service.calculate(3L);
+
+        assertThat(result.getDimensions())
+                .filteredOn(dimension -> "security".equals(dimension.getDimension()))
+                .singleElement()
+                .satisfies(dimension -> assertThat(dimension.getScore()).isEqualTo(27));
+        assertThat(result.getDeductions())
+                .filteredOn(deduction -> "security".equals(deduction.getDimension()))
+                .extracting("message")
+                .anyMatch(value -> String.valueOf(value).contains("sa"))
+                .anyMatch(value -> String.valueOf(value).contains("TRUSTWORTHY"));
+    }
+    @Test
     void rejectsUnknownDatabaseTypeFromRuntimeMetadataInsteadOfFallingBackToMySql() {
         TsMetricLatestDao latestDao = mock(TsMetricLatestDao.class);
         InstanceRuntimeMetadataService runtimeMetadataService = mock(InstanceRuntimeMetadataService.class);

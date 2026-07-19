@@ -15,7 +15,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name="SQL Server 运维保障")
-@RestController @RequestMapping("/api/sqlserver")
+@RestController @RequestMapping("/api/v1/sqlserver")
 public class SqlServerController {
  @Resource private SqlServerOperationsService service;
  @Operation(summary="恢复演练记录") @PostMapping("/restore-drills") @RequiresPerm("sqlserver_backup:view")

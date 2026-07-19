@@ -8,6 +8,16 @@ import java.util.Map;
 
 @Mapper
 public interface PgOperationsMapper {
+    long countSnapshots(@Param("instanceId") Long instanceId,
+        @Param("source") String source,@Param("category") String category,
+        @Param("sqlState") String sqlState,@Param("database") String database,@Param("user") String user,
+        @Param("keyword") String keyword,@Param("from") Timestamp from,@Param("to") Timestamp to);
+    List<Map<String,Object>> selectSnapshots(@Param("instanceId") Long instanceId,
+        @Param("source") String source,@Param("category") String category,
+        @Param("sqlState") String sqlState,@Param("database") String database,@Param("user") String user,
+        @Param("keyword") String keyword,@Param("from") Timestamp from,@Param("to") Timestamp to,
+        @Param("limit") int limit,@Param("offset") long offset);
+    List<Map<String,Object>> selectSnapshotSummary(@Param("instanceId") Long instanceId,@Param("from") Timestamp from);
     long countEvents(@Param("instanceId") Long instanceId,
         @Param("source") String source,@Param("category") String category,@Param("excludeAudit") boolean excludeAudit,
         @Param("sqlState") String sqlState,@Param("database") String database,@Param("user") String user,

@@ -35,6 +35,7 @@ import com.lzzh.monitor.collector.spi.model.LongConnPoint;
 import com.lzzh.monitor.collector.spi.model.MetricPoint;
 import com.lzzh.monitor.collector.spi.model.ObjectMetricPoint;
 import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
+import com.lzzh.monitor.collector.spi.model.PgCollectItemStatusPoint;
 import com.lzzh.monitor.collector.spi.model.PgOperationalEventPoint;
 import com.lzzh.monitor.collector.spi.model.SlowSqlSamplePoint;
 import com.lzzh.monitor.collector.spi.model.SqlServerDiagnosticEventPoint;
@@ -52,6 +53,7 @@ import com.lzzh.monitor.dao.ts.TsLongConnWriter;
 import com.lzzh.monitor.dao.ts.TsMetricWriter;
 import com.lzzh.monitor.dao.ts.TsParamQueryDao;
 import com.lzzh.monitor.dao.ts.TsPgQueryStatWriter;
+import com.lzzh.monitor.dao.ts.PgCollectItemStatusWriter;
 import com.lzzh.monitor.dao.ts.TsPgOperationalEventWriter;
 import com.lzzh.monitor.dao.ts.TsSlowSqlSampleWriter;
 import com.lzzh.monitor.dao.ts.TsSqlServerDiagnosticEventWriter;
@@ -83,6 +85,8 @@ public class CollectRunner {
     private TsPgQueryStatWriter tsPgQueryStatWriter;
     @Resource
     private TsPgOperationalEventWriter tsPgOperationalEventWriter;
+    @Resource(name = "pgCollectItemStatusWriterImpl")
+    private PgCollectItemStatusWriter pgCollectItemStatusWriter;
     @Resource
     private TsSqlServerDiagnosticEventWriter tsSqlServerDiagnosticEventWriter;
     @Resource
@@ -483,6 +487,7 @@ public class CollectRunner {
         writeObjects(instanceId, result.getObjectPoints());
         writeTopSql(instanceId, result.getTopSqlPoints());
         writePgQueryStats(instanceId, result.getPgQueryStatPoints());
+        writePgCollectItemStatuses(instanceId, result.getPgCollectItemStatusPoints());
         writePgOperationalEvents(instanceId, result.getPgOperationalEventPoints());
         writeSqlServerDiagnosticEvents(instanceId, result.getSqlServerDiagnosticEventPoints());
         writeLongConns(instanceId, result.getLongConnPoints());
@@ -548,6 +553,14 @@ public class CollectRunner {
                         p.timestampMillis()))
                 .toList();
         tsLongConnWriter.batchWrite(instanceId, rows);
+    }
+
+    private void writePgCollectItemStatuses(Long instanceId, List<PgCollectItemStatusPoint> points) {
+        if (points == null || points.isEmpty()) return;
+        var rows = points.stream().map(p -> new PgCollectItemStatusWriter.ItemStatus(
+                p.frequency(), p.itemCode(), p.status(), p.reason(), p.durationMs(), p.rowCount(),
+                p.collectedAtMillis())).toList();
+        pgCollectItemStatusWriter.batchUpsert(instanceId, rows);
     }
 
     private void writePgOperationalEvents(Long instanceId, List<PgOperationalEventPoint> points) {

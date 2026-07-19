@@ -47,7 +47,10 @@ class InstanceDataCleanupMapperTest {
                 "delete from metric_top_sql",
                 "delete from metric_capacity_object",
                 "delete from metric_long_conn",
-                "delete from metric_slow_sql_sample");
+                "delete from metric_slow_sql_sample",
+                "delete from pg_operational_event",
+                "delete from pg_operational_snapshot",
+                "delete from pg_collect_item_status");
 
         BoundSql selectWindow = boundSql(configuration, ALERT_WINDOW_NAMESPACE + ".selectWindow",
                 Map.of("dedupKey", "rule:1", "windowType", "trigger"));

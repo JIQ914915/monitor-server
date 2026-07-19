@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.postgresql.item;
 
 import com.lzzh.monitor.collector.spi.model.MetricPoint;
+import com.lzzh.monitor.collector.spi.model.PgCollectItemStatusPoint;
 import com.lzzh.monitor.collector.spi.model.ObjectMetricPoint;
 import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
 import com.lzzh.monitor.collector.spi.model.PgOperationalEventPoint;
@@ -12,7 +13,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * PG 采集点收集器：一个采集项一次执行可投递数值 / 文本 / 对象级指标点，
@@ -29,6 +32,8 @@ public class PgMetricSink {
     private final List<PgQueryStatPoint> pgQueryStats = new ArrayList<>();
     private final List<PgOperationalEventPoint> pgOperationalEvents = new ArrayList<>();
     private final List<SlowSqlSamplePoint> slowSqlSamples = new ArrayList<>();
+    private final List<PgCollectItemStatusPoint> collectItemStatuses = new ArrayList<>();
+    private final Map<String, String> unavailableReasons = new HashMap<>();
     private final List<ItemError> itemErrors = new ArrayList<>();
 
     /** 采集项级别的失败记录（item code + 错误信息）。 */
@@ -81,6 +86,32 @@ public class PgMetricSink {
 
     public List<ItemError> getItemErrors() {
         return itemErrors;
+    }
+
+    public void addCollectItemStatus(PgCollectItemStatusPoint point) {
+        collectItemStatuses.add(point);
+    }
+
+    public List<PgCollectItemStatusPoint> collectItemStatuses() {
+        return collectItemStatuses;
+    }
+
+    public void markUnavailable(String itemCode, String reason) {
+        unavailableReasons.put(itemCode, reason);
+    }
+
+    public String unavailableReason(String itemCode) {
+        return unavailableReasons.get(itemCode);
+    }
+
+    /** 当前已收集的全部业务点数量，用于计算单个采集项的实际产出。 */
+    public int pointCount() {
+        return numeric.size() + text.size() + objects.size() + topSql.size()
+                + pgQueryStats.size() + pgOperationalEvents.size() + slowSqlSamples.size();
+    }
+
+    public int errorCount() {
+        return itemErrors.size();
     }
 
     public List<MetricPoint> numeric() {

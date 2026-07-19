@@ -12,6 +12,7 @@ import com.lzzh.monitor.api.request.PgOperationalEventQuery;
 import com.lzzh.monitor.api.request.PgRestoreDrillRequest;
 import com.lzzh.monitor.api.response.PgBlockingNodeVo;
 import com.lzzh.monitor.api.response.PgDatabaseVo;
+import com.lzzh.monitor.api.response.PgCollectItemStatusVo;
 import com.lzzh.monitor.api.response.PgSessionVo;
 import com.lzzh.monitor.api.response.PgQueryAnalyticsVo;
 import com.lzzh.monitor.api.response.PgSqlRegressionVo;
@@ -43,13 +44,52 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/postgresql")
 public class PostgreSqlController {
-    @Resource private PostgreSqlDiagnosticService diagnosticService;
-    @Resource private PostgreSqlPhase2Service phase2Service;
-    @Resource private PostgreSqlPhase3Service phase3Service;
+    @Resource(name = "postgreSqlDiagnosticServiceImpl") private PostgreSqlDiagnosticService diagnosticService;
+    @Resource(name = "postgreSqlPhase2ServiceImpl") private PostgreSqlPhase2Service phase2Service;
+    @Resource(name = "postgreSqlPhase3ServiceImpl") private PostgreSqlPhase3Service phase3Service;
+
+    @Operation(summary = "实时概况采集质量")
+    @PostMapping("/collection-quality/realtime")
+    @RequiresPerm("pg_realtime:view")
+    public Result<List<PgCollectItemStatusVo>> realtimeCollectionQuality(@Valid @RequestBody IdRequest request) {
+        return collectionQuality(request);
+    }
+
+    @Operation(summary = "Query Analytics 采集质量")
+    @PostMapping("/collection-quality/query")
+    @RequiresPerm("pg_query:view")
+    public Result<List<PgCollectItemStatusVo>> queryCollectionQuality(@Valid @RequestBody IdRequest request) {
+        return collectionQuality(request);
+    }
+
+    @Operation(summary = "复制监控采集质量")
+    @PostMapping("/collection-quality/replication")
+    @RequiresPerm("pg_replication:view")
+    public Result<List<PgCollectItemStatusVo>> replicationCollectionQuality(@Valid @RequestBody IdRequest request) {
+        return collectionQuality(request);
+    }
+
+    @Operation(summary = "归档恢复采集质量")
+    @PostMapping("/collection-quality/backups")
+    @RequiresPerm("pg_backup:view")
+    public Result<List<PgCollectItemStatusVo>> backupCollectionQuality(@Valid @RequestBody IdRequest request) {
+        return collectionQuality(request);
+    }
+
+    @Operation(summary = "任务进度采集质量")
+    @PostMapping("/collection-quality/progress")
+    @RequiresPerm("pg_progress:view")
+    public Result<List<PgCollectItemStatusVo>> progressCollectionQuality(@Valid @RequestBody IdRequest request) {
+        return collectionQuality(request);
+    }
+
+    private Result<List<PgCollectItemStatusVo>> collectionQuality(IdRequest request) {
+        return Result.ok(phase2Service.collectItemStatuses(request.getId()));
+    }
 
     @Operation(summary = "发现实例内数据库")
     @PostMapping("/databases")
-    @RequiresPerm("pg_session:view")
+    @RequiresPerm("pg_realtime:view")
     public Result<List<PgDatabaseVo>> databases(@Valid @RequestBody IdRequest request) {
         return Result.ok(diagnosticService.databases(request.getId()));
     }

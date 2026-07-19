@@ -1,6 +1,7 @@
 package com.lzzh.monitor.collector.postgresql.item;
 
 import com.lzzh.monitor.collector.postgresql.version.PgVersionAdapter;
+import com.lzzh.monitor.collector.postgresql.PgCollectionStatusCodes;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.PgQueryStatPoint;
 import com.lzzh.monitor.collector.spi.model.TopSqlPoint;
@@ -37,8 +38,10 @@ public class PgTopSqlItem implements PgMetricItem {
             "jit_emission_count", "jit_emission_time"
     };
 
-    @Resource
+    @Resource(name = "pgTopSqlDeltaStore")
     private PgTopSqlDeltaStore deltaStore;
+    @Resource(name = "pgCounterDeltaStore")
+    private PgCounterDeltaStore pgCounterDeltaStore;
 
     @Override
     public String code() {
@@ -54,9 +57,13 @@ public class PgTopSqlItem implements PgMetricItem {
     public void collect(Connection conn, CollectRequest request, PgVersionAdapter adapter, PgMetricSink sink)
             throws SQLException {
         String extensionSchema = extensionSchema(conn);
-        if (extensionSchema == null) return;
+        if (extensionSchema == null) {
+            sink.markUnavailable(CODE, PgCollectionStatusCodes.NOT_ENABLED);
+            return;
+        }
         long instanceId = request.getInstanceId();
         long ts = System.currentTimeMillis();
+        collectExtensionHealth(conn, extensionSchema, instanceId, ts, sink);
         String sql = """
                 SELECT d.datname, r.rolname, s.queryid::text AS queryid, s.query,
                        s.calls, s.total_exec_time, s.rows,
@@ -139,7 +146,27 @@ public class PgTopSqlItem implements PgMetricItem {
                 metrics, statsReset, dealloc, ts));
     }
 
-    private static String extensionSchema(Connection conn) {
+    private void collectExtensionHealth(Connection conn, String extensionSchema, long instanceId,
+                                        long ts, PgMetricSink sink) throws SQLException {
+        String sql = "SELECT stats_reset, dealloc FROM %s.pg_stat_statements_info".formatted(extensionSchema);
+        try (Statement st = conn.createStatement()) {
+            st.setQueryTimeout(5);
+            try (ResultSet rs = st.executeQuery(sql)) {
+                if (!rs.next()) return;
+                Double resetAge = PgStatsResetSupport.ageSeconds(rs, "stats_reset", ts);
+                if (resetAge != null) {
+                    sink.addNumeric("pg.statements.reset_age_seconds", resetAge, ts);
+                }
+                Long deallocDelta = pgCounterDeltaStore.delta(instanceId, "pg.statements.dealloc",
+                        rs.getLong("dealloc"), ts);
+                if (deallocDelta != null) {
+                    sink.addNumeric("pg.statements.dealloc_delta", deallocDelta, ts);
+                }
+            }
+        }
+    }
+
+    private static String extensionSchema(Connection conn) throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(5);
             try (ResultSet rs = st.executeQuery("""
@@ -150,10 +177,9 @@ public class PgTopSqlItem implements PgMetricItem {
                     """)) {
                 return rs.next() ? rs.getString(1) : null;
             }
-        } catch (SQLException e) {
-            return null;
         }
     }
+
     private static String truncate(String text, int max) {
         return text != null && text.length() > max ? text.substring(0, max) : text;
     }

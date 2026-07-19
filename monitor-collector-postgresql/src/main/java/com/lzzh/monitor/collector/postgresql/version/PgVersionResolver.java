@@ -3,7 +3,7 @@ package com.lzzh.monitor.collector.postgresql.version;
 import com.lzzh.monitor.collector.spi.version.VersionResolver;
 import org.springframework.stereotype.Component;
 
-/** PostgreSQL 版本解析器：注册 13（通配基线），14/15/16 按 floor 回退命中。 */
+/** PostgreSQL 版本解析器：显式注册产品支持的 14～18，并保留 13 作为 SQL 基线。 */
 @Component
 public class PgVersionResolver {
 
@@ -11,6 +11,8 @@ public class PgVersionResolver {
 
     public PgVersionResolver() {
         delegate.register(new Pg13Adapter());
+        delegate.register(new Pg14Adapter());
+        delegate.register(new Pg15Adapter());
         delegate.register(new Pg16Adapter());
         delegate.register(new Pg17Adapter());
         delegate.register(new Pg18Adapter());

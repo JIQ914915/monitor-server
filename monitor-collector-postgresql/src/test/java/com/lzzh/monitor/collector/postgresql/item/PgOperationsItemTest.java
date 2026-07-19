@@ -32,6 +32,6 @@ class PgOperationsItemTest {
         assertThat(PgOperationsItem.unavailableReason(new SQLException("denied", "42501")))
                 .isEqualTo("permission_denied");
         assertThat(PgOperationsItem.unavailableReason(new SQLException("network", "08006")))
-                .isEqualTo("collection_failed");
+                .isEqualTo("connection_failed");
     }
 }

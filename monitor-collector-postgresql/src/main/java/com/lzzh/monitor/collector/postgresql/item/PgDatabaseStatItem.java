@@ -45,6 +45,10 @@ public class PgDatabaseStatItem implements PgMetricItem {
                 if (!rs.next()) {
                     return;
                 }
+                Double resetAge = PgStatsResetSupport.ageSeconds(rs, "stats_reset", ts);
+                if (resetAge != null) {
+                    sink.addNumeric("pg.stats.database_reset_age_seconds", resetAge, ts);
+                }
                 long commit = rs.getLong("xact_commit");
                 long rollback = rs.getLong("xact_rollback");
                 Double commitRate = deltaStore.rate(instanceId, "xact_commit", commit, ts);

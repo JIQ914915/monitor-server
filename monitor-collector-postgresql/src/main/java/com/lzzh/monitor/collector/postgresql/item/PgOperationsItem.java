@@ -2,6 +2,7 @@ package com.lzzh.monitor.collector.postgresql.item;
 
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.lzzh.monitor.collector.postgresql.PgCollectionStatusCodes;
 import com.lzzh.monitor.collector.postgresql.version.PgVersionAdapter;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.PgOperationalEventPoint;
@@ -157,15 +158,11 @@ public class PgOperationsItem implements PgMetricItem {
         return value instanceof String text?PgSensitiveDataRedactor.redactSecrets(text):value;
     }
     private static void unavailable(PgMetricSink sink,String category,String type,Exception e){
-        String reason=e instanceof java.sql.SQLException sql?unavailableReason(sql):"collection_failed";
+        String reason=e instanceof java.sql.SQLException sql?unavailableReason(sql):PgCollectionStatusCodes.COLLECTION_FAILED;
         emit(sink,"postgresql",category,type+"_unavailable","warning",null,null,type,null,null,
-                type+" unavailable: "+reason,Map.of("reason",reason),System.currentTimeMillis());
+                type+"："+PgCollectionStatusCodes.message(reason),Map.of("reason",reason),System.currentTimeMillis());
     }
     static String unavailableReason(java.sql.SQLException error){
-        return switch(String.valueOf(error.getSQLState())){
-            case "42P01","42703","42883","0A000" -> "unsupported";
-            case "42501" -> "permission_denied";
-            default -> "collection_failed";
-        };
+        return PgCollectionStatusCodes.reason(error);
     }    private record ProgressState(long done,long changedAt,long lastSeen){}
 }

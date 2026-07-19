@@ -120,6 +120,13 @@ public class HealthScoreServiceImpl implements HealthScoreService {
     private static final Set<String> SQLSERVER_METRICS_1H = Set.of(
             "sqlserver.backup.max_full_age_hours","sqlserver.backup.uncovered_database_count",
             "sqlserver.backup.log_missing_database_count");
+    private static final Set<String> SQLSERVER_METRICS_1D = Set.of(
+            "sqlserver.security.policy_disabled_login_count",
+            "sqlserver.security.expiration_disabled_login_count",
+            "sqlserver.security.sa_enabled",
+            "sqlserver.security.enabled_sysadmin_login_count",
+            "sqlserver.security.trustworthy_database_count",
+            "sqlserver.security.db_chaining_database_count");
 
     /** max_connections 无数据时的连接使用率基准。 */
     private static final double DEFAULT_MAX_CONNECTIONS = 500;
@@ -219,8 +226,9 @@ public class HealthScoreServiceImpl implements HealthScoreService {
     private HealthScoreVo calculateSqlServer(Long instanceId) {
         Map<String,Double> m=latestDao.latestFrom1m(instanceId,SQLSERVER_METRICS_1M);
         Map<String,Double> h=latestDao.latestFrom1h(instanceId,SQLSERVER_METRICS_1H);
+        Map<String,Double> d=latestDao.latestFrom1d(instanceId,SQLSERVER_METRICS_1D);
         List<HealthScoreVo.Deduction> out=new ArrayList<>();
-        if(m.isEmpty()&&h.isEmpty()) return assemble(instanceId,-1,-1,-1,-1,-1,out);
+        if(m.isEmpty()&&h.isEmpty()&&d.isEmpty()) return assemble(instanceId,-1,-1,-1,-1,-1,out);
         int availability=100,performance=100,stability=100,capacity=100;
         Double available=m.get("sqlserver.availability");
         if(available!=null&&available<1){availability-=80;out.add(deduct("availability","SQL Server 实例当前无法连接",80,"0"));}
@@ -246,8 +254,28 @@ public class HealthScoreServiceImpl implements HealthScoreService {
         if(uncovered!=null&&uncovered>0){stability-=35;out.add(deduct("stability","存在未纳入完整备份的用户数据库；备份记录也不等于可恢复",35,fmt0(uncovered)));}
         Double fullAge=h.get("sqlserver.backup.max_full_age_hours");
         if(fullAge!=null&&fullAge>24){stability-=20;out.add(deduct("stability","用户数据库完整备份已超过 24 小时",20,fmt0(fullAge)+"h"));}
+        int security=calcSqlServerSecurity(d,out);
         return assemble(instanceId,Math.max(0,availability),Math.max(0,performance),
-                Math.max(0,stability),Math.max(0,capacity),-1,out);
+                Math.max(0,stability),Math.max(0,capacity),security,out);
+    }
+
+    private int calcSqlServerSecurity(Map<String,Double> metrics,List<HealthScoreVo.Deduction> out) {
+        Double policyDisabled=metrics.get("sqlserver.security.policy_disabled_login_count");
+        Double expirationDisabled=metrics.get("sqlserver.security.expiration_disabled_login_count");
+        Double saEnabled=metrics.get("sqlserver.security.sa_enabled");
+        Double sysadminLogins=metrics.get("sqlserver.security.enabled_sysadmin_login_count");
+        Double trustworthyDatabases=metrics.get("sqlserver.security.trustworthy_database_count");
+        Double dbChainingDatabases=metrics.get("sqlserver.security.db_chaining_database_count");
+        if(policyDisabled==null&&expirationDisabled==null&&saEnabled==null&&sysadminLogins==null
+                &&trustworthyDatabases==null&&dbChainingDatabases==null) return -1;
+        int score=100;
+        if(saEnabled!=null&&saEnabled>0){score-=20;out.add(deduct("security","内置 sa 登录账号处于启用状态，建议确认必要性并限制使用",20,fmt0(saEnabled)));}
+        if(policyDisabled!=null&&policyDisabled>0){int points=policyDisabled>5?25:15;score-=points;out.add(deduct("security","存在未启用 Windows 密码策略的 SQL 登录账号",points,fmt0(policyDisabled)));}
+        if(expirationDisabled!=null&&expirationDisabled>0){int points=expirationDisabled>5?10:5;score-=points;out.add(deduct("security","存在未启用密码过期策略的 SQL 登录账号，请结合服务账号策略人工核对",points,fmt0(expirationDisabled)));}
+        if(sysadminLogins!=null&&sysadminLogins>3){int points=sysadminLogins>5?15:8;score-=points;out.add(deduct("security","启用的 sysadmin 成员偏多，建议按最小权限复核",points,fmt0(sysadminLogins)));}
+        if(trustworthyDatabases!=null&&trustworthyDatabases>0){score-=25;out.add(deduct("security","用户数据库启用了 TRUSTWORTHY，需核对跨数据库提权风险",25,fmt0(trustworthyDatabases)));}
+        if(dbChainingDatabases!=null&&dbChainingDatabases>0){score-=15;out.add(deduct("security","用户数据库启用了跨数据库所有权链，需核对权限边界",15,fmt0(dbChainingDatabases)));}
+        return Math.max(0,score);
     }
 
     private HealthScoreVo assemble(Long instanceId, int scoreAvail, int scorePerf, int scoreStability,

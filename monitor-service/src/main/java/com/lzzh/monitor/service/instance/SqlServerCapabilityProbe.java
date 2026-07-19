@@ -64,6 +64,7 @@ public class SqlServerCapabilityProbe {
             result.add(probe(conn, "backup_history", "备份历史",
                     "SELECT TOP (1) backup_set_id FROM msdb.dbo.backupset",
                     "无法读取 msdb 备份历史，备份覆盖与恢复准备度受限"));
+            result.add(securityMetadata(conn));
             result.add(queryStore(conn, major));
         } catch (Exception e) {
             result.add(InstanceCapabilityVo.of("live_probe", "实时能力探测",
@@ -127,6 +128,25 @@ public class SqlServerCapabilityProbe {
         }
     }
 
+    private InstanceCapabilityVo securityMetadata(Connection conn) {
+        try (Statement st = conn.createStatement()) {
+            st.setQueryTimeout(5);
+            try (ResultSet rs = st.executeQuery(
+                    "SELECT CAST(HAS_PERMS_BY_NAME(NULL,NULL,'VIEW ANY DEFINITION') AS int)")) {
+                return securityMetadataCapability(rs.next() && rs.getInt(1) == 1);
+            }
+        } catch (Exception e) {
+            return InstanceCapabilityVo.of("security_health", "安全配置健康评分",
+                    permissionDenied(e) ? PERMISSION_DENIED : LIMITED,
+                    permissionDenied(e) ? "无法检查安全元数据权限，安全配置维度暂不评分" : friendly(e));
+        }
+    }
+
+    InstanceCapabilityVo securityMetadataCapability(boolean available) {
+        return InstanceCapabilityVo.of("security_health", "安全配置健康评分",
+                available ? AVAILABLE : PERMISSION_DENIED,
+                available ? null : "监控账号缺少 VIEW ANY DEFINITION，无法完整检查登录账号，安全配置维度暂不评分");
+    }
     private InstanceCapabilityVo queryStore(Connection conn, int major) {
         if (major > 0 && major < 13) {
             return InstanceCapabilityVo.of("query_store", "Query Store", VERSION_NOT_SUPPORT,

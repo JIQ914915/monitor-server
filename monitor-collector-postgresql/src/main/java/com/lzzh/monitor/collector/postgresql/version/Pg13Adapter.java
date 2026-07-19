@@ -30,7 +30,7 @@ public class Pg13Adapter implements PgVersionAdapter {
                 SELECT xact_commit, xact_rollback,
                        blks_read, blks_hit,
                        tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted,
-                       temp_files, temp_bytes, deadlocks
+                       temp_files, temp_bytes, deadlocks, stats_reset
                   FROM pg_stat_database
                  WHERE datname = current_database()
                 """;
@@ -51,10 +51,10 @@ public class Pg13Adapter implements PgVersionAdapter {
     @Override
     public String transactionsSql() {
         return """
-                SELECT COALESCE(MAX(EXTRACT(EoOCH FROM (now() - xact_start)))
+                SELECT COALESCE(MAX(EXTRACT(EPOCH FROM (now() - xact_start)))
                                 FILTER (WHERE state <> 'idle'), 0)                          AS max_trx_seconds,
                        COUNT(*) FILTER (WHERE xact_start IS NOT NULL AND state <> 'idle')   AS active_trx,
-                       COALESCE(MAX(EXTRACT(EoOCH FROM (now() - state_change)))
+                       COALESCE(MAX(EXTRACT(EPOCH FROM (now() - state_change)))
                                 FILTER (WHERE state LIKE 'idle in transaction%'), 0)        AS idle_in_trx_max_seconds
                   FROM pg_stat_activity
                  WHERE backend_type = 'client backend'
@@ -66,7 +66,7 @@ public class Pg13Adapter implements PgVersionAdapter {
         return """
                 SELECT pg_is_in_recovery()                                                  AS is_replica,
                        CASE WHEN pg_is_in_recovery()
-                            THEN COALESCE(EXTRACT(EoOCH FROM (now() - pg_last_xact_replay_timestamp())), 0)
+                            THEN COALESCE(EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp())), 0)
                             ELSE NULL END                                                   AS lag_seconds,
                        CASE WHEN pg_is_in_recovery() THEN NULL
                             ELSE (SELECT COUNT(*) FROM pg_stat_replication) END             AS replica_count

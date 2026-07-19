@@ -1,17 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.lzzh.monitor.dao.mapper.TsPgOperationalEventWriterMapper">
-  <insert id="insertBatch">
+  <insert id="insertStateChanges">
+    WITH incoming(source,category,event_type,severity,database_name,user_name,object_name,
+      query_id,sql_state,message,fingerprint,payload,sensitive_redacted,event_time) AS (
+      VALUES
+      <foreach collection="items" item="it" separator=",">
+        (#{it.source},#{it.category},#{it.eventType},#{it.severity},
+         #{it.databaseName,jdbcType=VARCHAR},#{it.userName,jdbcType=VARCHAR},#{it.objectName,jdbcType=VARCHAR},
+         #{it.queryId,jdbcType=VARCHAR},#{it.sqlState,jdbcType=VARCHAR},#{it.message,jdbcType=VARCHAR},
+         #{it.fingerprint},CAST(#{it.payloadJson} AS jsonb),#{it.sensitiveRedacted},
+         to_timestamp(#{it.eventTimeMillis}/1000.0))
+      </foreach>
+    )
     INSERT INTO pg_operational_event
       (instance_id,source,category,event_type,severity,database_name,user_name,object_name,
        query_id,sql_state,message,fingerprint,payload,sensitive_redacted,event_time)
+    SELECT #{instanceId},i.source,i.category,i.event_type,i.severity,i.database_name,i.user_name,
+           i.object_name,i.query_id,i.sql_state,i.message,i.fingerprint,i.payload,
+           i.sensitive_redacted,i.event_time
+      FROM incoming i
+      LEFT JOIN pg_operational_snapshot s
+        ON s.instance_id=#{instanceId} AND s.fingerprint=i.fingerprint
+     WHERE s.fingerprint IS NULL OR s.severity IS DISTINCT FROM i.severity
+  </insert>
+
+  <insert id="upsertSnapshots">
+    INSERT INTO pg_operational_snapshot
+      (instance_id,source,category,event_type,severity,database_name,user_name,object_name,
+       query_id,sql_state,message,fingerprint,payload,sensitive_redacted,event_time,collected_at)
     VALUES
     <foreach collection="items" item="it" separator=",">
       (#{instanceId},#{it.source},#{it.category},#{it.eventType},#{it.severity},
        #{it.databaseName,jdbcType=VARCHAR},#{it.userName,jdbcType=VARCHAR},#{it.objectName,jdbcType=VARCHAR},
        #{it.queryId,jdbcType=VARCHAR},#{it.sqlState,jdbcType=VARCHAR},#{it.message,jdbcType=VARCHAR},
-       #{it.fingerprint,jdbcType=VARCHAR},CAST(#{it.payloadJson} AS jsonb),#{it.sensitiveRedacted},
-       to_timestamp(#{it.eventTimeMillis}/1000.0))
+       #{it.fingerprint},CAST(#{it.payloadJson} AS jsonb),#{it.sensitiveRedacted},
+       to_timestamp(#{it.eventTimeMillis}/1000.0),now())
     </foreach>
+    ON CONFLICT (instance_id,fingerprint) DO UPDATE SET
+      source=EXCLUDED.source,category=EXCLUDED.category,event_type=EXCLUDED.event_type,
+      severity=EXCLUDED.severity,database_name=EXCLUDED.database_name,user_name=EXCLUDED.user_name,
+      object_name=EXCLUDED.object_name,query_id=EXCLUDED.query_id,sql_state=EXCLUDED.sql_state,
+      message=EXCLUDED.message,payload=EXCLUDED.payload,
+      sensitive_redacted=EXCLUDED.sensitive_redacted,event_time=EXCLUDED.event_time,collected_at=now()
   </insert>
 </mapper>

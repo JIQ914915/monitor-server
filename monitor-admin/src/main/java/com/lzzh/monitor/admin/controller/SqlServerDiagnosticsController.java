@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "SQL Server 诊断")
 @RestController
-@RequestMapping("/api/sqlserver/diagnostics")
+@RequestMapping("/api/v1/sqlserver/diagnostics")
 public class SqlServerDiagnosticsController {
     private final SqlServerDiagnosticsService diagnosticsService;
 

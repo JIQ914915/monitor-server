@@ -12,6 +12,7 @@ public class Pg18Adapter extends Pg17Adapter {
                        COALESCE(SUM(extends), 0) AS extends,
                        COALESCE(SUM(read_time), 0) AS read_time_ms,
                        COALESCE(SUM(write_time), 0) AS write_time_ms,
+                       MAX(stats_reset) AS stats_reset,
                        COALESCE(SUM(read_bytes), 0) AS read_bytes,
                        COALESCE(SUM(write_bytes), 0) AS write_bytes,
                        COALESCE(SUM(extend_bytes), 0) AS extend_bytes

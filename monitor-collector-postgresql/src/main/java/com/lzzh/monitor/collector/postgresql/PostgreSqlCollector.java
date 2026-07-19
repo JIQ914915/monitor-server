@@ -8,6 +8,7 @@ import com.lzzh.monitor.collector.postgresql.version.PgVersionResolver;
 import com.lzzh.monitor.collector.spi.AbstractDatabaseCollector;
 import com.lzzh.monitor.collector.spi.TargetConnectionCache;
 import com.lzzh.monitor.collector.spi.annotation.CollectorFor;
+import com.lzzh.monitor.collector.spi.model.PgCollectItemStatusPoint;
 import com.lzzh.monitor.collector.spi.model.CollectRequest;
 import com.lzzh.monitor.collector.spi.model.CollectResult;
 import com.lzzh.monitor.common.enums.CollectFrequency;
@@ -96,6 +97,7 @@ public class PostgreSqlCollector extends AbstractDatabaseCollector {
         result.setTopSqlPoints(sink.topSql());
         result.setPgQueryStatPoints(sink.pgQueryStats());
         result.setPgOperationalEventPoints(sink.pgOperationalEvents());
+        result.setPgCollectItemStatusPoints(sink.collectItemStatuses());
         result.setSlowSqlSamplePoints(sink.slowSqlSamples());
         sink.getItemErrors().forEach(err -> result.addItemError(err.code(), err.message()));
         return result;
@@ -154,22 +156,53 @@ public class PostgreSqlCollector extends AbstractDatabaseCollector {
     private boolean runItems(Long instanceId, Connection conn, CollectRequest request,
                              PgVersionAdapter adapter, List<PgMetricItem> targets, PgMetricSink sink) {
         for (PgMetricItem item : targets) {
+            long startedAt = System.currentTimeMillis();
+            int pointsBefore = sink.pointCount();
+            int errorsBefore = sink.errorCount();
+            String status = PgCollectionStatusCodes.SUCCESS;
+            String reason = PgCollectionStatusCodes.NONE;
             try {
                 item.collect(conn, request, adapter, sink);
+                String unavailableReason = sink.unavailableReason(item.code());
+                if (unavailableReason != null) {
+                    status = PgCollectionStatusCodes.UNAVAILABLE;
+                    reason = unavailableReason;
+                } else if (sink.errorCount() > errorsBefore) {
+                    status = PgCollectionStatusCodes.PARTIAL_FAILED;
+                    reason = PgCollectionStatusCodes.COLLECTION_FAILED;
+                }
             } catch (Exception e) {
+                status = PgCollectionStatusCodes.FAILED;
+                reason = PgCollectionStatusCodes.reason(e);
                 log.warn("实例 {} 采集项 {} 失败: {}", instanceId, item.code(), e.getMessage());
-                sink.addItemError(item.code(), e.getMessage());
+                sink.addItemError(item.code(), PgCollectionStatusCodes.message(reason));
                 try {
                     if (!conn.isValid(0)) {
                         log.warn("实例 {} 连接已失效，跳过剩余采集项", instanceId);
+                        addQualityPoint(sink, request, item, status, reason, startedAt, pointsBefore);
                         return true;
                     }
                 } catch (Exception ignored) {
+                    addQualityPoint(sink, request, item, status, reason, startedAt, pointsBefore);
                     return true;
                 }
             }
+            addQualityPoint(sink, request, item, status, reason, startedAt, pointsBefore);
         }
         return false;
+    }
+
+    private static void addQualityPoint(PgMetricSink sink, CollectRequest request, PgMetricItem item,
+                                        String status, String reason, long startedAt, int pointsBefore) {
+        long now = System.currentTimeMillis();
+        sink.addCollectItemStatus(new PgCollectItemStatusPoint(frequencyCode(request.getFrequency()),
+                item.code(), status, reason, (int) Math.min(Integer.MAX_VALUE, now - startedAt),
+                Math.max(0, sink.pointCount() - pointsBefore), now));
+    }
+
+    private static String frequencyCode(CollectFrequency frequency) {
+        if (frequency == null) return "1m";
+        return switch (frequency) { case MINUTE -> "1m"; case HOURLY -> "1h"; case DAILY -> "1d"; };
     }
 
     /** 解析本次要执行的采集项：按 request.frequency 过滤，使 1m/1h/1d 三档各采各的。 */

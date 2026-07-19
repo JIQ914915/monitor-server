@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * 普通表保留清理任务（§12.2）：event/log 类别的表不是 TimescaleDB Hypertable，
  * 无法用 add_retention_policy，改由每日定时 DELETE 按 retention_config 天数清理。
  * <ul>
- *   <li>event → alert_event（按 created_at）、pg_operational_event（按 event_time）</li>
+ *   <li>event → alert_event、PG 运维状态事件与过期快照</li>
  *   <li>log   → sys_oper_log（按 oper_time）</li>
  * </ul>
  * report 为文件产物（对象存储/磁盘），不在本任务范围。
@@ -46,6 +46,7 @@ public class RetentionCleanupJob {
 
     private void cleanupLogTable() {
         cleanup("log", "sys_oper_log", retentionCleanupDao::deleteOperLogsOlderThanDays);
+        cleanup("event", "pg_operational_snapshot", retentionCleanupDao::deletePgOperationalSnapshotsOlderThanDays);
     }
 
     private void cleanup(String category, String table, CleanupExecutor cleanupExecutor) {

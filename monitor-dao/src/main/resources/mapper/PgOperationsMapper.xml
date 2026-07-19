@@ -13,6 +13,33 @@
       AND (message ILIKE '%'||#{keyword}||'%' OR object_name ILIKE '%'||#{keyword}||'%' OR fingerprint=#{keyword})
     </if>
   </sql>
+  <sql id="snapshotFilter">
+    instance_id=#{instanceId} AND event_time BETWEEN #{from} AND #{to}
+    AND collected_at&gt;=now()-INTERVAL '5 minutes'
+    <if test="source != null and source != ''">AND source=#{source}</if>
+    <if test="category != null and category != ''">AND category=#{category}</if>
+    <if test="sqlState != null and sqlState != ''">AND sql_state=#{sqlState}</if>
+    <if test="database != null and database != ''">AND database_name=#{database}</if>
+    <if test="user != null and user != ''">AND user_name=#{user}</if>
+    <if test="keyword != null and keyword != ''">
+      AND (message ILIKE '%'||#{keyword}||'%' OR object_name ILIKE '%'||#{keyword}||'%' OR fingerprint=#{keyword})
+    </if>
+  </sql>
+  <select id="countSnapshots" resultType="long">
+    SELECT count(*) FROM pg_operational_snapshot WHERE <include refid="snapshotFilter"/>
+  </select>
+  <select id="selectSnapshots" resultType="java.util.Map">
+    SELECT id,source,category,event_type,severity,database_name,user_name,object_name,
+           query_id,sql_state,message,fingerprint,payload,sensitive_redacted,event_time,collected_at
+      FROM pg_operational_snapshot WHERE <include refid="snapshotFilter"/>
+     ORDER BY event_time DESC LIMIT #{limit} OFFSET #{offset}
+  </select>
+  <select id="selectSnapshotSummary" resultType="java.util.Map">
+    SELECT category,event_type,severity,count(*) event_count,count(DISTINCT fingerprint) fingerprint_count,
+           max(event_time) last_seen
+      FROM pg_operational_snapshot WHERE collected_at&gt;=GREATEST(#{from},now()-INTERVAL '5 minutes')
+     GROUP BY category,event_type,severity ORDER BY event_count DESC
+  </select>
   <select id="countEvents" resultType="long">
     SELECT count(*) FROM pg_operational_event WHERE <include refid="eventFilter"/>
   </select>

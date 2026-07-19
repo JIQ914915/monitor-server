@@ -50,14 +50,19 @@ public class PostgreSqlPhase3ServiceImpl implements PostgreSqlPhase3Service {
         String category=forcedCategory!=null?forcedCategory:trim(request.getCategory());
         String sqlState=trim(request.getSqlState()),database=trim(request.getDatabase()),user=trim(request.getUser()),keyword=trim(request.getKeyword());
         Timestamp fromTs=ts(from),toTs=ts(to);
-        long total=mapper.countEvents(request.getInstanceId(),source,category,excludeAudit,sqlState,database,user,keyword,fromTs,toTs);
+        boolean currentSnapshot=forcedCategory!=null;
+        long total=currentSnapshot
+                ?mapper.countSnapshots(request.getInstanceId(),source,category,sqlState,database,user,keyword,fromTs,toTs)
+                :mapper.countEvents(request.getInstanceId(),source,category,excludeAudit,sqlState,database,user,keyword,fromTs,toTs);
         if(total==0)return PageResult.of(List.of(),0);
-        return PageResult.of(mapper.selectEvents(request.getInstanceId(),source,category,excludeAudit,sqlState,database,user,keyword,fromTs,toTs,page.pageSize(),page.offset())
-                .stream().map(this::event).toList(),total);
+        List<Map<String,Object>> rows=currentSnapshot
+                ?mapper.selectSnapshots(request.getInstanceId(),source,category,sqlState,database,user,keyword,fromTs,toTs,page.pageSize(),page.offset())
+                :mapper.selectEvents(request.getInstanceId(),source,category,excludeAudit,sqlState,database,user,keyword,fromTs,toTs,page.pageSize(),page.offset());
+        return PageResult.of(rows.stream().map(this::event).toList(),total);
     }
     @Override public List<PgOperationalSummaryVo> summary(Long instanceId){
         requireInstance(instanceId);
-        return mapper.selectSummary(instanceId,ts(OffsetDateTime.now().minusDays(1))).stream()
+        return mapper.selectSnapshotSummary(instanceId,ts(OffsetDateTime.now().minusDays(1))).stream()
                 .map(this::summaryVo).toList();
     }
     @Override public PgOperationalHealthVo health(Long instanceId){

@@ -4,6 +4,7 @@ import com.lzzh.monitor.api.request.PgPageRequest;
 import com.lzzh.monitor.api.request.PgPlanCaptureRequest;
 import com.lzzh.monitor.api.request.PgQueryAnalyticsRequest;
 import com.lzzh.monitor.api.response.PgAdvisorVo;
+import com.lzzh.monitor.api.response.PgCollectItemStatusVo;
 import com.lzzh.monitor.api.response.PgObjectAnalysisVo;
 import com.lzzh.monitor.api.response.PgPlanHistoryVo;
 import com.lzzh.monitor.api.response.PgQueryAnalyticsVo;
@@ -13,6 +14,7 @@ import com.lzzh.monitor.common.result.PageResult;
 import java.util.List;
 
 public interface PostgreSqlPhase2Service {
+    List<PgCollectItemStatusVo> collectItemStatuses(Long instanceId);
     PageResult<PgQueryAnalyticsVo> queryAnalytics(PgQueryAnalyticsRequest request);
     PageResult<PgSqlRegressionVo> regressions(PgPageRequest request);
     PgPlanHistoryVo capturePlan(PgPlanCaptureRequest request);

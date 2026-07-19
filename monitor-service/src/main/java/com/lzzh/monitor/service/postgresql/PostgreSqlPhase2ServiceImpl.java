@@ -6,6 +6,7 @@ import com.lzzh.monitor.common.enums.DbType;
 import com.lzzh.monitor.api.request.PgPlanCaptureRequest;
 import com.lzzh.monitor.api.request.PgQueryAnalyticsRequest;
 import com.lzzh.monitor.api.response.PgAdvisorVo;
+import com.lzzh.monitor.api.response.PgCollectItemStatusVo;
 import com.lzzh.monitor.api.response.PgObjectAnalysisVo;
 import com.lzzh.monitor.api.response.PgPlanHistoryVo;
 import com.lzzh.monitor.api.response.PgQueryAnalyticsVo;
@@ -36,11 +37,17 @@ public class PostgreSqlPhase2ServiceImpl implements PostgreSqlPhase2Service {
             "tempWritten", "temp_written", "walBytes", "wal_bytes",
             "stddev", "stddev_exec_time_ms", "lastSeen", "last_seen");
 
-    @Resource private PgDiagnosticMapper mapper;
-    @Resource private InstanceService instanceService;
-    @Resource private DataScopeService dataScopeService;
-    @Resource private PostgreSqlPlanService planService;
-    @Resource private PostgreSqlAdvisorService advisorService;
+    @Resource(name = "pgDiagnosticMapper") private PgDiagnosticMapper mapper;
+    @Resource(name = "instanceServiceImpl") private InstanceService instanceService;
+    @Resource(name = "dataScopeService") private DataScopeService dataScopeService;
+    @Resource(name = "postgreSqlPlanService") private PostgreSqlPlanService planService;
+    @Resource(name = "postgreSqlAdvisorService") private PostgreSqlAdvisorService advisorService;
+
+    @Override
+    public List<PgCollectItemStatusVo> collectItemStatuses(Long instanceId) {
+        requireInstance(instanceId);
+        return mapper.selectCollectItemStatuses(instanceId).stream().map(this::toCollectItemStatus).toList();
+    }
 
     @Override
     public PageResult<PgQueryAnalyticsVo> queryAnalytics(PgQueryAnalyticsRequest request) {
@@ -209,6 +216,20 @@ public class PostgreSqlPhase2ServiceImpl implements PostgreSqlPhase2Service {
         vo.setBaselineValue(nullableDouble(row, "baseline_value"));
         vo.setCurrentValue(nullableDouble(row, "current_value")); vo.setChangeRatio(nullableDouble(row, "change_ratio"));
         vo.setEvidence(jsonMap(row.get("evidence"))); vo.setDetectedAt(time(row, "detected_at"));
+        return vo;
+    }
+
+    private PgCollectItemStatusVo toCollectItemStatus(Map<String, Object> row) {
+        PgCollectItemStatusVo vo = new PgCollectItemStatusVo();
+        vo.setFrequency(text(row, "frequency"));
+        vo.setItemCode(text(row, "item_code"));
+        vo.setStatus(text(row, "status"));
+        vo.setReason(text(row, "reason"));
+        vo.setDurationMs((int) longNumber(row, "duration_ms"));
+        vo.setRowCount((int) longNumber(row, "row_count"));
+        vo.setConsecutiveFailures((int) longNumber(row, "consecutive_failures"));
+        vo.setLastSuccessAt(time(row, "last_success_at"));
+        vo.setCollectedAt(time(row, "collected_at"));
         return vo;
     }
 

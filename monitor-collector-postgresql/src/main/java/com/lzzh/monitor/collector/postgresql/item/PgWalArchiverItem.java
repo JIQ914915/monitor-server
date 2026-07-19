@@ -41,8 +41,12 @@ public class PgWalArchiverItem implements PgMetricItem {
         try (Statement st = conn.createStatement()) {
             st.setQueryTimeout(DEFAULT_QUERY_TIMEOUT_SECONDS);
             if (majorVersion(request.getVersion()) >= 14) {
-                try (ResultSet rs = st.executeQuery("SELECT wal_bytes FROM pg_stat_wal")) {
+                try (ResultSet rs = st.executeQuery("SELECT wal_bytes, stats_reset FROM pg_stat_wal")) {
                     if (rs.next()) {
+                        Double resetAge = PgStatsResetSupport.ageSeconds(rs, "stats_reset", ts);
+                        if (resetAge != null) {
+                            sink.addNumeric("pg.stats.wal_reset_age_seconds", resetAge, ts);
+                        }
                         Double rate = deltaStore.rate(instanceId, "pg.wal.write_rate",
                                 rs.getBigDecimal("wal_bytes").longValue(), ts);
                         if (rate != null) {

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lzzh.monitor.dao.mapper.PgCollectItemStatusWriterMapper">
+  <insert id="upsertBatch">
+    INSERT INTO pg_collect_item_status
+      (instance_id,frequency,item_code,status,reason,duration_ms,row_count,
+       consecutive_failures,last_success_at,collected_at)
+    VALUES
+    <foreach collection="items" item="it" separator=",">
+      (#{instanceId},#{it.frequency},#{it.itemCode},#{it.status},#{it.reason},
+       #{it.durationMs},#{it.rowCount},CASE WHEN #{it.status}='success' THEN 0 ELSE 1 END,
+       CASE WHEN #{it.status}='success' THEN to_timestamp(#{it.collectedAtMillis}/1000.0) ELSE NULL END,
+       to_timestamp(#{it.collectedAtMillis}/1000.0))
+    </foreach>
+    ON CONFLICT (instance_id,frequency,item_code) DO UPDATE SET
+      status=EXCLUDED.status,reason=EXCLUDED.reason,duration_ms=EXCLUDED.duration_ms,
+      row_count=EXCLUDED.row_count,
+      consecutive_failures=CASE WHEN EXCLUDED.status='success' THEN 0
+                                ELSE pg_collect_item_status.consecutive_failures+1 END,
+      last_success_at=CASE WHEN EXCLUDED.status='success' THEN EXCLUDED.collected_at
+                           ELSE pg_collect_item_status.last_success_at END,
+      collected_at=EXCLUDED.collected_at
+  </insert>
+</mapper>

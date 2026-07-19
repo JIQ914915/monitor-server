@@ -80,6 +80,8 @@ class SqlServerVersionResolverTest {
             assertThat(adapter.replicationLatencySql()).contains("Replication Dist.", "Delivery Latency");
             assertThat(adapter.cdcLatencySql()).contains("fn_cdc_get_max_lsn", "cdc.change_tables");
             assertThat(adapter.configurationSnapshotSql()).contains("sys.configurations");
+            assertThat(adapter.securityAuditSql()).contains("VIEW ANY DEFINITION", "sys.sql_logins",
+                    "sys.server_role_members", "is_trustworthy_on", "is_db_chaining_on");
             assertThat(adapter.indexCandidatesSql()).contains("sys.dm_db_missing_index_group_stats");
             assertThat(String.join(" ", adapter.identitySql(), adapter.queryStoreCapabilitySql(),
                             adapter.performanceCountersSql(), adapter.runtimeSql(), adapter.transactionDetailSql(),
@@ -90,7 +92,7 @@ class SqlServerVersionResolverTest {
                             adapter.backupCoverageSql(), adapter.alwaysOnHealthSql(), adapter.agentHealthSql(),
                             adapter.agentJobsSql(),
                             adapter.logShippingSql(), adapter.replicationCdcSql(), adapter.replicationLatencySql(),
-                            adapter.cdcLatencySql(), adapter.configurationSnapshotSql(),
+                            adapter.cdcLatencySql(), adapter.configurationSnapshotSql(), adapter.securityAuditSql(),
                             adapter.indexCandidatesSql()))
                     .doesNotContain("ALTER ", "EXEC ", "UPDATE ", "DELETE ", "INSERT ");
         }

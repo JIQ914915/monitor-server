@@ -52,7 +52,8 @@ public class PostgreSqlDiagnosticServiceImpl implements PostgreSqlDiagnosticServ
             try (ResultSet rs = st.executeQuery("""
                     SELECT datname, datallowconn,
                            has_database_privilege(current_user, datname, 'CONNECT') AS connectable,
-                           pg_database_size(datname) AS size_bytes
+                           CASE WHEN has_database_privilege(current_user, datname, 'CONNECT')
+                                THEN pg_database_size(datname) END AS size_bytes
                       FROM pg_database
                      WHERE NOT datistemplate
                      ORDER BY datname
@@ -62,7 +63,8 @@ public class PostgreSqlDiagnosticServiceImpl implements PostgreSqlDiagnosticServ
                     vo.setName(rs.getString("datname"));
                     vo.setAllowConnections(rs.getBoolean("datallowconn"));
                     vo.setConnectable(rs.getBoolean("connectable"));
-                    vo.setSizeBytes(rs.getLong("size_bytes"));
+                    long sizeBytes = rs.getLong("size_bytes");
+                    vo.setSizeBytes(rs.wasNull() ? 0L : sizeBytes);
                     vo.setInScope(inScope(target, vo.getName()));
                     result.add(vo);
                 }

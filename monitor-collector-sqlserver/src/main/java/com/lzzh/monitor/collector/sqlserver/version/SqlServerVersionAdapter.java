@@ -32,5 +32,6 @@ public interface SqlServerVersionAdapter extends VersionAdapter {
     String replicationLatencySql();
     String cdcLatencySql();
     String configurationSnapshotSql();
+    String securityAuditSql();
     String indexCandidatesSql();
 }

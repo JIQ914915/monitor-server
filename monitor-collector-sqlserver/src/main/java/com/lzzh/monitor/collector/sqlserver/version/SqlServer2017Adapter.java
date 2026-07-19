@@ -499,6 +499,32 @@ public class SqlServer2017Adapter implements SqlServerVersionAdapter {
     }
 
     @Override
+    public String securityAuditSql() {
+        return """
+                SELECT CAST(HAS_PERMS_BY_NAME(NULL,NULL,'VIEW ANY DEFINITION') AS int) AS can_view_any_definition,
+                       (SELECT COUNT(*) FROM sys.sql_logins
+                         WHERE is_disabled=0 AND is_policy_checked=0) AS policy_disabled_login_count,
+                       (SELECT COUNT(*) FROM sys.sql_logins
+                         WHERE is_disabled=0 AND is_expiration_checked=0) AS expiration_disabled_login_count,
+                       (SELECT COUNT(*) FROM sys.sql_logins
+                         WHERE principal_id=1 AND is_disabled=0) AS sa_enabled,
+                       (SELECT COUNT(*)
+                          FROM sys.server_role_members rm
+                          JOIN sys.server_principals role_principal
+                            ON role_principal.principal_id=rm.role_principal_id
+                          JOIN sys.server_principals member_principal
+                            ON member_principal.principal_id=rm.member_principal_id
+                         WHERE role_principal.name='sysadmin'
+                           AND COALESCE(member_principal.is_disabled,0)=0) AS enabled_sysadmin_login_count,
+                       (SELECT COUNT(*) FROM sys.databases
+                         WHERE database_id>4 AND source_database_id IS NULL
+                           AND is_trustworthy_on=1) AS trustworthy_database_count,
+                       (SELECT COUNT(*) FROM sys.databases
+                         WHERE database_id>4 AND source_database_id IS NULL
+                           AND is_db_chaining_on=1) AS db_chaining_database_count
+                """;
+    }
+    @Override
     public String indexCandidatesSql() {
         return """
                 SELECT TOP (50) 'missing' candidate_type,

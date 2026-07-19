@@ -27,6 +27,13 @@ class SqlServerCapabilityProbeTest {
         assertThat(probe.agentCapability("Standard Edition", 2).getStatus()).isEqualTo("available");
     }
     @Test
+    void securityHealthExplainsMetadataPermissionRequirement() {
+        assertThat(probe.securityMetadataCapability(true).getStatus()).isEqualTo("available");
+        assertThat(probe.securityMetadataCapability(false).getStatus()).isEqualTo("permission_denied");
+        assertThat(probe.securityMetadataCapability(false).getMessage())
+                .contains("VIEW ANY DEFINITION", "暂不评分");
+    }
+    @Test
     void explainsLegacyFeatureFallback() {
         assertThat(probe.versionCapability(10, "10.50", null).getMessage())
                 .contains("不提供 Query Store", "Always On", "DMV");

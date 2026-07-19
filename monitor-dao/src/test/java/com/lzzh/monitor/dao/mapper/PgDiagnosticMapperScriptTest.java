@@ -46,5 +46,10 @@ class PgDiagnosticMapperScriptTest {
         assertThat(countSql.getSql())
                 .contains("SELECT count(*)", "GROUP BY database_name,user_name,query_id", "database_name=?")
                 .doesNotContain("LIMIT", "OFFSET", "ORDER BY");
+
+        BoundSql qualitySql = configuration.getMappedStatement(NAMESPACE + ".selectCollectItemStatuses")
+                .getBoundSql(Map.of("instanceId", 1L));
+        assertThat(qualitySql.getSql()).contains("FROM pg_collect_item_status", "instance_id=?",
+                "frequency", "item_code", "consecutive_failures");
     }
 }
